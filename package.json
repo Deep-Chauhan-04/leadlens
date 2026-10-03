@@ -1,0 +1,32 @@
+{
+  "name": "leadlens",
+  "version": "1.0.0",
+  "description": "Agentic B2B Sales Outreach Platform with SQLite HITL and Tiered Model Routing",
+  "main": "server/server.js",
+  "type": "module",
+  "scripts": {
+    "dev:backend": "node server/server.js",
+    "dev:frontend": "node vite-dev.js",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build": "vite build --config vite.config.cjs",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "lucide-react": "^0.395.0",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^8.0.11",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "concurrently": "^8.2.2",
+    "vite": "^5.2.11"
+  }
+}
