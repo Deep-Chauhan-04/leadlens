@@ -36,17 +36,17 @@ export default function AnalyticsView() {
   }, []);
 
 
-  const counts = analytics?.counts || { total: 3, sent: 1, approved: 1, needsReview: 1, researching: 0 };
-  const averages = analytics?.averages || { icpScore: 94.8, deliverabilityScore: 96.2, reflectionScore: 8.9 };
+  const counts = analytics?.counts || { total: 0, sent: 0, approved: 0, needsReview: 0, researching: 0 };
+  const averages = analytics?.averages || { icpScore: 0, deliverabilityScore: 0, reflectionScore: 0 };
   const telemetry = analytics?.telemetry || {
-    totalCost: 0.045,
-    totalNaiveCost: 0.175,
-    totalSavingsDollar: 0.13,
-    savingsPercent: 74.3,
-    benchmarkSdrCost: 55.50,
-    humanHoursSaved: 2.3,
-    totalCheapTokens: 120000,
-    totalPremiumTokens: 21000
+    totalCost: 0,
+    totalNaiveCost: 0,
+    totalSavingsDollar: 0,
+    savingsPercent: 0,
+    benchmarkSdrCost: 0,
+    humanHoursSaved: 0,
+    totalCheapTokens: 0,
+    totalPremiumTokens: 0
   };
 
   const handleExportCsv = () => {

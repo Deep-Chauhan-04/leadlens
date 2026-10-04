@@ -80,6 +80,15 @@ const runBackgroundPipeline = async (leadId, companyName, website, clientProfile
       }
     );
 
+    // Check Autopilot qualification rules from profile controls
+    const threshold = clientProfile?.agentControls?.autopilotApprovalThreshold;
+    const isAutoApproved = threshold && typeof threshold === 'number' && (pipelineData.icp_score >= threshold);
+    const targetStatus = isAutoApproved ? 'Approved' : 'Needs Review';
+
+    if (isAutoApproved) {
+      await logToDb('Autopilot', `ICP match score (${pipelineData.icp_score}%) meets or exceeds autopilot threshold (${threshold}%). Automatically promoted to Approved queue.`, 'success');
+    }
+
     // Update lead in database with all enriched fields
     await dbRun(`
       UPDATE leads 
@@ -90,7 +99,7 @@ const runBackgroundPipeline = async (leadId, companyName, website, clientProfile
           industry = ?,
           employee_count = ?,
           location = ?,
-          status = 'Needs Review', 
+          status = ?, 
           icp_score = ?,
           intel_dossier = ?, 
           pain_points = ?, 
@@ -114,6 +123,7 @@ const runBackgroundPipeline = async (leadId, companyName, website, clientProfile
       pipelineData.industry,
       pipelineData.employee_count,
       pipelineData.location,
+      targetStatus,
       pipelineData.icp_score,
       JSON.stringify(pipelineData.intel_dossier),
       JSON.stringify(pipelineData.pain_points),
@@ -261,15 +271,18 @@ app.post('/api/leads', async (req, res) => {
 
   try {
     let clientProfile;
+    const settingsRow = await dbGet("SELECT value FROM settings WHERE key = 'client_profile'");
+    const baseProfile = settingsRow ? JSON.parse(settingsRow.value) : {};
+    
     if (campaignId) {
       const campaign = await dbGet('SELECT * FROM campaigns WHERE id = ?', [campaignId]);
       if (campaign) {
         clientProfile = {
-          companyName: 'AeroCloud Solutions',
-          offering: campaign.offering,
-          targetPersona: campaign.target_persona,
-          valueProp: campaign.value_prop,
-          tone: campaign.tone
+          ...baseProfile,
+          offering: campaign.offering || baseProfile.offering,
+          targetPersona: campaign.target_persona || baseProfile.targetPersona,
+          valueProp: campaign.value_prop || baseProfile.valueProp,
+          tone: campaign.tone || baseProfile.agentControls?.emailTone || 'consultative'
         };
       }
     }
@@ -472,12 +485,15 @@ app.post('/api/leads/:id/approve', async (req, res) => {
         throw new Error('Lead is missing contact email address.');
       }
       
+      const settingsRow = await dbGet("SELECT value FROM settings WHERE key = 'client_profile'");
+      const currentProfile = settingsRow ? JSON.parse(settingsRow.value) : {};
+
       const smtpConfig = {
         host: process.env.SMTP_HOST,
         port: parseInt(process.env.SMTP_PORT || '587', 10),
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
-        fromName: process.env.SMTP_FROM_NAME || 'AeroCloud Solutions',
+        fromName: process.env.SMTP_FROM_NAME || currentProfile.senderName || currentProfile.companyName || 'LeadLens Outbound',
         fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER
       };
       
@@ -633,13 +649,72 @@ app.get('/api/analytics', async (req, res) => {
       } catch (e) {}
     });
 
-    const totalSavingsDollar = totalNaiveCost > totalCost ? totalNaiveCost - totalCost : (rows.length * 0.038);
-    const savingsPercent = totalNaiveCost > 0 ? ((totalSavingsDollar / totalNaiveCost) * 100).toFixed(1) : '72.8';
+    const totalSavingsDollar = totalNaiveCost > totalCost ? totalNaiveCost - totalCost : 0;
+    const savingsPercent = totalNaiveCost > 0 ? Number(((totalSavingsDollar / totalNaiveCost) * 100).toFixed(1)) : 0;
 
     // Industry benchmark comparison (Avg human SDR cost per qualified prospect: $18.50)
     const benchmarkSdrCost = rows.length * 18.50;
-    const aiCost = totalCost > 0 ? totalCost : (rows.length * 0.015);
+    const aiCost = totalCost;
     const humanHoursSaved = Number((rows.length * 0.75).toFixed(1)); // ~45 mins per lead
+
+    // Technographics & ICP Tier Distribution
+    const allLeads = await dbQuery('SELECT id, company_name, website, contact_name, contact_title, status, icp_score, deliverability_score, intel_dossier, created_at FROM leads');
+    const techCounts = {};
+    let eliteCount = 0;
+    let qualifiedCount = 0;
+    let marginalCount = 0;
+
+    allLeads.forEach(lead => {
+      // ICP Score Buckets
+      const score = lead.icp_score || 0;
+      if (score >= 90) eliteCount++;
+      else if (score >= 75) qualifiedCount++;
+      else if (score > 0) marginalCount++;
+
+      // Tech Stack counts
+      if (lead.intel_dossier) {
+        try {
+          const parsedDossier = typeof lead.intel_dossier === 'string' ? JSON.parse(lead.intel_dossier) : lead.intel_dossier;
+          if (Array.isArray(parsedDossier?.techStack)) {
+            parsedDossier.techStack.forEach(t => {
+              const cleaned = String(t).trim();
+              if (cleaned && cleaned.length < 35) {
+                techCounts[cleaned] = (techCounts[cleaned] || 0) + 1;
+              }
+            });
+          }
+        } catch (e) {}
+      }
+    });
+
+    const techStackDistribution = Object.entries(techCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12);
+
+    // High priority leads for review queue (top 5 in Needs Review or Approved)
+    const priorityLeads = allLeads
+      .filter(l => l.status === 'Needs Review' || l.status === 'Approved')
+      .sort((a, b) => (b.icp_score || 0) - (a.icp_score || 0))
+      .slice(0, 5)
+      .map(l => {
+        let techPreview = [];
+        try {
+          const parsedDossier = typeof l.intel_dossier === 'string' ? JSON.parse(l.intel_dossier) : l.intel_dossier;
+          if (Array.isArray(parsedDossier?.techStack)) techPreview = parsedDossier.techStack.slice(0, 3);
+        } catch (e) {}
+        return {
+          id: l.id,
+          company_name: l.company_name,
+          website: l.website,
+          contact_name: l.contact_name,
+          contact_title: l.contact_title,
+          status: l.status,
+          icp_score: l.icp_score,
+          deliverability_score: l.deliverability_score,
+          techStack: techPreview
+        };
+      });
 
     res.json({
       counts: {
@@ -650,13 +725,20 @@ app.get('/api/analytics', async (req, res) => {
         researching: researchingLeads.count
       },
       averages: {
-        icpScore: Number((avgIcp.avg || 94.2).toFixed(1)),
-        deliverabilityScore: Number((avgDeliverability.avg || 95.8).toFixed(1)),
-        reflectionScore: Number((avgReflection.avg || 8.9).toFixed(1))
+        icpScore: avgIcp?.avg ? Number(avgIcp.avg.toFixed(1)) : 0,
+        deliverabilityScore: avgDeliverability?.avg ? Number(avgDeliverability.avg.toFixed(1)) : 0,
+        reflectionScore: avgReflection?.avg ? Number(avgReflection.avg.toFixed(1)) : 0
       },
+      icpBuckets: {
+        elite: eliteCount,
+        qualified: qualifiedCount,
+        marginal: marginalCount
+      },
+      techStackDistribution,
+      priorityLeads,
       telemetry: {
         totalCost: Number(aiCost.toFixed(4)),
-        totalNaiveCost: Number((totalNaiveCost || (rows.length * 0.054)).toFixed(4)),
+        totalNaiveCost: Number(totalNaiveCost.toFixed(4)),
         totalSavingsDollar: Number(totalSavingsDollar.toFixed(4)),
         savingsPercent: Number(savingsPercent),
         totalCheapTokens,
@@ -665,6 +747,24 @@ app.get('/api/analytics', async (req, res) => {
         humanHoursSaved
       }
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 12B. Live Global Activity Feed Across Accounts
+// -------------------------------------------------------------
+app.get('/api/activity', async (req, res) => {
+  try {
+    const logs = await dbQuery(`
+      SELECT a.*, l.company_name, l.website 
+      FROM activity_logs a 
+      LEFT JOIN leads l ON a.lead_id = l.id 
+      ORDER BY a.id DESC 
+      LIMIT 25
+    `);
+    res.json(logs);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -815,7 +915,7 @@ app.get('/api/settings', async (req, res) => {
     profile.smtpUser = process.env.SMTP_USER || '';
     profile.smtpHost = process.env.SMTP_HOST || '';
     profile.smtpFromEmail = process.env.SMTP_FROM_EMAIL || '';
-    profile.smtpFromName = process.env.SMTP_FROM_NAME || 'AeroCloud Solutions';
+    profile.smtpFromName = process.env.SMTP_FROM_NAME || profile.senderName || profile.companyName || 'LeadLens Outbound';
     res.json(profile);
   } catch (error) {
     res.status(500).json({ error: error.message });

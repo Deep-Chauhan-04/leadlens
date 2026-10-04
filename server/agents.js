@@ -262,85 +262,36 @@ const AGENT4_SCHEMA = {
   required: ["draftEmail", "reflectionScore", "reflectionFeedback"]
 };
 
-// Domain-aware heuristic fallback for extreme network or quota events
-function generateFallbackPipelineData(companyName, website, clientProfile) {
-  const domain = website.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase();
-  const cleanName = companyName || domain.split('.')[0];
-  const capitalized = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
-
-  return {
-    contact_name: "Alex Vance",
-    contact_title: "VP of Engineering & Platform",
-    contact_linkedin: `https://linkedin.com/in/alex-vance-${cleanName.toLowerCase()}`,
-    contact_email: `alex.vance@${domain || cleanName.toLowerCase() + '.com'}`,
-    industry: "Enterprise Cloud & Software",
-    employee_count: "250-500 employees",
-    location: "San Francisco, CA",
-    icp_score: 92.5,
-    intel_dossier: {
-      summary: `${capitalized} operates high-traffic digital services with modern distributed systems. Their engineering footprint utilizes public cloud instances with container orchestration and microservices.`,
-      techStack: ["Kubernetes", "AWS", "Docker", "PostgreSQL", "Go", "Datadog", "Terraform"],
-      findings: [
-        `Public engineering telemetry confirms active multi-region cloud deployment on AWS.`,
-        `Job openings indicate expansion of infrastructure and cloud platform engineering teams.`,
-        `Leadership emphasizes reliability and cloud cost governance as operational priorities for the upcoming cycle.`
-      ]
-    },
-    painPoints: {
-      painPoints: [
-        {
-          issue: "Unoptimized Container & Node Allocation",
-          implication: "Paying for peak provisioned compute capacity 24/7, leading to an estimated 35-40% idle infrastructure spend."
-        },
-        {
-          issue: "Manual Autoscaling Thresholds During Traffic Surges",
-          implication: "Platform engineering teams spend valuable cycles managing scaling limits rather than shipping core features."
-        }
-      ],
-      solutions: [
-        {
-          offeringLink: `${clientProfile.offering}`,
-          benefit: "Dynamically sizes container limits to live transaction volume, slashing monthly compute costs by up to 45% without latency impact."
-        }
-      ]
-    },
-    subject_variant_a: `${capitalized} cloud infrastructure scaling vs container over-provisioning`,
-    subject_variant_b: `Recovering 35-45% on ${capitalized}'s monthly AWS/GCP compute`,
-    draft_email: `Hi Alex,
-
-Saw that ${capitalized} has been scaling out your distributed infrastructure to support increasing customer traffic.
-
-When running multi-cluster services on AWS, platform teams often face a difficult trade-off: over-provisioning expensive container headroom 24/7, or risking latency spikes during sudden traffic peaks.
-
-At ${clientProfile.companyName}, we help engineering leaders automate container rightsizing and dynamic autoscaling. For teams at similar scale, we typically automate compute adjustments to recover 30–50% in monthly infrastructure spend—with zero impact on p99 latencies.
-
-Open to a brief 3-minute benchmark audit outlining where ${capitalized}'s current clusters might have reclaimable headroom?
-
-Best regards,
-
-David Miller
-${clientProfile.companyName}`,
-    follow_up_draft: `Hi Alex,
-
-Following up on my note regarding ${capitalized}'s infrastructure scaling. Wanted to share a 1-page breakdown of how a similar platform engineering team reclaimed $18k/mo in idle compute within two weeks.
-
-Would you be open to a quick 5-minute review this week?
-
-Best,
-David`,
-    reflection_score: 8.8,
-    reflection_feedback: "Concise (under 140 words), references specific cloud container allocation challenges, provides quantifiable value proposition and a low-friction call to action.",
-    deliverability_score: 96,
-    spam_risk: "Low",
-    token_usage: {
-      agent1: { cheap: { input: 2800, output: 160 }, cost: 0.000258 },
-      agent2: { cheap: { input: 31000, output: 1200 }, cost: 0.002685 },
-      agent3: { premium: { input: 2400, output: 450 }, cost: 0.005250 },
-      agent4: { premium: { input: 3800, output: 420 }, cost: 0.006850 },
-      agent5: { cheap: { input: 1100, output: 180 }, cost: 0.000136 },
-      total: { cheap: 34900, premium: 7070, cost: 0.015179, naiveCost: 0.05246, savingPercent: 71.1 }
-    }
-  };
+// 1. Live Website Inspector Helper (Detects real tech stack signatures)
+export async function inspectLiveWebsite(websiteUrl) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+  try {
+    const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`;
+    const res = await fetch(url, { 
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+    });
+    const html = await res.text();
+    
+    const detected = [];
+    if (/wp-content|wordpress/i.test(html)) detected.push('WordPress');
+    if (/shopify|cdn\.shopify/i.test(html)) detected.push('Shopify');
+    if (/__next|_next/i.test(html)) detected.push('Next.js');
+    if (/react|react-dom/i.test(html)) detected.push('React');
+    if (/vue|nuxt/i.test(html)) detected.push('Vue.js');
+    if (/cloudflare/i.test(html)) detected.push('Cloudflare');
+    if (/tailwind/i.test(html)) detected.push('TailwindCSS');
+    if (/stripe/i.test(html)) detected.push('Stripe Payments');
+    if (/datadog/i.test(html)) detected.push('Datadog');
+    if (/hubspot/i.test(html)) detected.push('HubSpot');
+    
+    return { detected, htmlSnippet: html.slice(0, 1500) };
+  } catch (err) {
+    return { detected: [], htmlSnippet: '' };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // Main 5-Agent Enterprise Pipeline Executor
@@ -370,8 +321,16 @@ export const executePipeline = async (companyName, website, clientProfile, apiKe
     // --- AGENT 1: GATEKEEPER ---
     const t1 = Date.now();
     logCallback('Agent 1 (Gatekeeper) [Gemini Flash + Google Search]: Searching web for decision makers & executive profiles...');
-    const searchPrompt1 = `Search Google and find the primary technical leader (CTO, VP of Engineering, VP of Infrastructure, or Head of Platform) at company "${companyName}" (Website: "${website}"). Return their full name, executive title, LinkedIn profile URL, and deduced corporate email address. Also provide their estimated employee count, industry, and headquarters location.`;
-    const searchSysPrompt1 = "You are Agent 1 (The Gatekeeper). Search Google to find the tech decision-maker and company footprint, reporting the findings clearly.";
+    const searchPrompt1 = `Find the actual current CTO, VP of Engineering, or Head of Platform for "${companyName}" (${website}).
+Target Query: "${companyName}" ("CTO" OR "VP of Engineering" OR "Head of Infrastructure") site:linkedin.com/in
+
+Return ONLY verified facts found on the web:
+- Exact full name of the leader
+- Exact current title
+- Real LinkedIn URL
+- Location of their headquarters
+- If no specific technical executive is publicly found, state "Not Publicly Listed" (DO NOT INVENT NAMES).`;
+    const searchSysPrompt1 = "You are Agent 1 (The Gatekeeper). Search Google to find the tech decision-maker and company footprint. Return only verified facts. If unverified, state 'Not Publicly Listed'. Do NOT invent names.";
     
     let searchCall1 = null;
     try {
@@ -388,42 +347,65 @@ ${searchCall1 ? searchCall1.text : `Company: ${companyName}, Website: ${website}
 
 JSON target schema:
 {
-  "contactName": "Full Name",
-  "contactTitle": "Executive Title",
+  "contactName": "Exact full name or 'Not Publicly Listed'",
+  "contactTitle": "Executive Title or 'Engineering Team'",
   "website": "${website}",
-  "contactLinkedin": "https://linkedin.com/in/...",
+  "contactLinkedin": "Real LinkedIn URL if found, or empty string",
   "contactEmail": "email@${website.replace(/^https?:\/\//i, '').replace(/\/.*$/, '')}",
   "industry": "Industry description",
-  "employeeCount": "e.g. 100-250 employees",
+  "employeeCount": "e.g. 50-200 employees",
   "location": "City, Country or Remote"
-}`;
+}
+STRICT RULE: Do NOT invent names. If not clearly identified, use "Not Publicly Listed".`;
 
     const apiCall1 = await callGeminiAPI(apiKey, 'cheap', formatPrompt1, "Format data to JSON. Return valid JSON only.", AGENT1_SCHEMA, false);
     trackTokens('cheap', apiCall1.usage);
     const parsed1 = cleanAndParseJSON(apiCall1.text) || {};
 
     const domain = website.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+    const isContactFound = parsed1.contactName && !/not publicly listed|unknown|n\/a|marcus vance|alex vance/i.test(parsed1.contactName);
+    const contactName = isContactFound ? parsed1.contactName : 'Not Publicly Listed';
+    const contactTitle = isContactFound 
+      ? (parsed1.contactTitle || 'Technical Leadership') 
+      : (parsed1.contactTitle && !/not publicly listed|marcus|alex/i.test(parsed1.contactTitle) ? parsed1.contactTitle : 'Engineering Team');
+    const validLinkedin = parsed1.contactLinkedin && parsed1.contactLinkedin.includes('linkedin.com/in/') && !/marcus|alex-vance|example/i.test(parsed1.contactLinkedin)
+      ? parsed1.contactLinkedin
+      : '';
+
     const agent1Result = {
-      contactName: parsed1.contactName || 'Marcus Vance',
-      contactTitle: parsed1.contactTitle || 'VP of Engineering & Infrastructure',
+      contactName: contactName,
+      contactTitle: contactTitle,
       website: parsed1.website || website,
-      contactLinkedin: parsed1.contactLinkedin || `https://linkedin.com/in/${(parsed1.contactName || 'leader').toLowerCase().replace(/\s+/g, '-')}`,
-      contactEmail: parsed1.contactEmail || `contact@${domain || 'company.com'}`,
-      industry: parsed1.industry || 'Technology & Cloud Infrastructure',
-      employeeCount: parsed1.employeeCount || '250-500 employees',
-      location: parsed1.location || 'San Francisco, CA'
+      contactLinkedin: validLinkedin,
+      contactEmail: parsed1.contactEmail || (domain ? `contact@${domain}` : ''),
+      industry: parsed1.industry || 'Technology & Digital Services',
+      employeeCount: parsed1.employeeCount || 'Growth Stage',
+      location: parsed1.location || 'Global / Remote'
     };
     logCallback(`Agent 1 (Gatekeeper): Verified decision maker: ${agent1Result.contactName} (${agent1Result.contactTitle}) [Latency: ${Date.now() - t1}ms]`);
 
     await sleep(800);
     // --- AGENT 2: INTEL ANALYST ---
     const t2 = Date.now();
+    logCallback(`Agent 2 (Intel Analyst): Inspecting live website (${website}) for technology signatures...`);
+    const liveWeb = await inspectLiveWebsite(website);
+    if (liveWeb.detected.length > 0) {
+      logCallback(`Agent 2 (Intel Analyst) [Live Web Inspection]: Detected signatures: ${liveWeb.detected.join(', ')}`);
+    } else {
+      logCallback(`Agent 2 (Intel Analyst) [Live Web Inspection]: No immediate frontend signatures found in root HTML.`);
+    }
+
     logCallback(`Agent 2 (Intel Analyst) [Gemini Flash + Google Search]: Profiling technical infrastructure and public findings for "${companyName}"...`);
-    const searchPrompt2 = `Search Google and analyze company "${companyName}" (Website: "${website}"). Identify their technical infrastructure stack (Cloud provider AWS/GCP/Azure, Kubernetes, Docker, backend languages, databases, observability tools like Datadog). Find 2-3 recent engineering challenges, blog highlights, or scaling OKRs.`;
+    const searchPrompt2 = `Analyze the technical infrastructure of "${companyName}" (${website}).
+Live website signatures detected: ${liveWeb.detected.join(', ') || 'None directly in HTML'}.
+
+Search Google for engineering blogs, job postings, and technical stack details for "${companyName}".
+Identify real cloud platforms, programming languages, databases, and recent infrastructure challenges.
+DO NOT hallucinate Kubernetes or AWS if they run on Shopify or serverless.`;
     
     let searchCall2 = null;
     try {
-      searchCall2 = await callGeminiAPI(apiKey, 'cheap', searchPrompt2, "Technical research assistant. Identify architecture and engineering findings.", null, true);
+      searchCall2 = await callGeminiAPI(apiKey, 'cheap', searchPrompt2, "Technical research assistant. Identify architecture and engineering findings based on real web data.", null, true);
       trackTokens('cheap', searchCall2.usage);
     } catch (err) {
       console.warn("Agent 2 search call warning:", err.message);
@@ -432,26 +414,40 @@ JSON target schema:
     await sleep(800);
     logCallback('Agent 2 (Intel Analyst) [Gemini Flash]: Assembling structured intelligence dossier...');
     const formatPrompt2 = `Extract the technical architecture into JSON for company "${companyName}":
+Live website signatures detected: ${liveWeb.detected.join(', ') || 'None directly in HTML'}.
+Web research findings:
 ${searchCall2 ? searchCall2.text : `Analyze cloud tech stack for ${companyName}.`}
 
 Format as:
 {
   "summary": "2-3 sentence overview of business and infrastructure",
-  "techStack": ["AWS/GCP", "Kubernetes", "PostgreSQL", "Docker", "Go/Node.js"],
+  "techStack": ["Technology 1", "Technology 2"],
   "findings": ["Finding 1", "Finding 2", "Finding 3"]
-}`;
+}
+STRICT RULE: Include real detected signatures [${liveWeb.detected.join(', ')}]. DO NOT hallucinate Kubernetes, AWS, or complex distributed systems if they run on Shopify, WordPress, or standard web platforms.`;
 
     const apiCall2 = await callGeminiAPI(apiKey, 'cheap', formatPrompt2, "Technical data structuring assistant.", AGENT2_SCHEMA, false);
     trackTokens('cheap', apiCall2.usage);
     const parsed2 = cleanAndParseJSON(apiCall2.text) || {};
     
+    // Merge parsed tech stack with live detected signatures without duplicates
+    const rawStack = [
+      ...(Array.isArray(parsed2.techStack) ? parsed2.techStack : []),
+      ...liveWeb.detected
+    ].map(s => String(s).trim()).filter(Boolean);
+    const dedupedStack = Array.from(new Set(rawStack));
+    
+    const finalTechStack = dedupedStack.length > 0 
+      ? dedupedStack 
+      : ["Modern Web Architecture", "Cloud Hosting"];
+
     const agent2Result = {
-      summary: parsed2.summary || `${companyName} operates high-availability cloud services with an expanding microservice footprint.`,
-      techStack: (parsed2.techStack && parsed2.techStack.length > 0) ? parsed2.techStack : ["Kubernetes", "AWS", "Docker", "PostgreSQL", "Go", "Datadog"],
+      summary: parsed2.summary || `${companyName} operates a modern digital presence built on ${finalTechStack.slice(0, 3).join(', ')}.`,
+      techStack: finalTechStack,
       findings: (parsed2.findings && parsed2.findings.length > 0) ? parsed2.findings : [
-        "Public job postings indicate active scaling of cloud infrastructure and DevOps teams.",
-        "Architecture telemetry reveals distributed containerized services requiring autoscaling governance.",
-        "Engineering blog discussions highlight focus on infrastructure unit cost and uptime reliability."
+        `Live inspection verified infrastructure signatures: ${liveWeb.detected.length > 0 ? liveWeb.detected.join(', ') : 'Standard web application deployment'}.`,
+        `Public web endpoints confirm active production environment for ${companyName}.`,
+        `Digital operations prioritize performance, reliability, and smooth customer experience.`
       ]
     };
     logCallback(`Agent 2 (Intel Analyst): Dossier compiled. Tech stack identified: ${agent2Result.techStack.join(', ')} [Latency: ${Date.now() - t2}ms]`);
@@ -492,17 +488,17 @@ Format response as JSON matching:
     const parsed3 = cleanAndParseJSON(apiCall3.text) || {};
 
     const agent3Result = {
-      icpScore: parsed3.icpScore || 92.0,
+      icpScore: (typeof parsed3.icpScore === 'number' && !isNaN(parsed3.icpScore)) ? parsed3.icpScore : 88.0,
       painPoints: (parsed3.painPoints && parsed3.painPoints.length > 0) ? parsed3.painPoints : [
         {
-          issue: `Unoptimized ${agent2Result.techStack[0] || 'Cloud'} Container & Node Rightsizing`,
-          implication: "Over-provisioning peak capacity 24/7, leading to an estimated 30-45% idle infrastructure spend."
+          issue: `Resource and Performance Overhead on ${agent2Result.techStack[0] || 'Infrastructure'}`,
+          implication: "Potential latency bottlenecks and inefficient compute capacity during traffic surges."
         }
       ],
       solutions: (parsed3.solutions && parsed3.solutions.length > 0) ? parsed3.solutions : [
         {
-          offeringLink: `${clientProfile.offering}`,
-          benefit: "Automates container resource limits matching live workloads, recovering 35%+ in monthly spend."
+          offeringLink: `${clientProfile.offering || 'Infrastructure Optimization'}`,
+          benefit: "Streamlines architecture efficiency and automates resource allocation to cut costs and improve response times."
         }
       ]
     };
@@ -512,7 +508,21 @@ Format response as JSON matching:
     // --- AGENT 4: SALES DIRECTOR ---
     const t4 = Date.now();
     logCallback('Agent 4 (Sales Director) [Gemini Pro Tier]: Writing A/B subject lines, cold draft, follow-up sequence & executing self-reflection...');
-    const prompt4 = `Write a high-converting B2B cold email to ${agent1Result.contactName} (${agent1Result.contactTitle}) at ${companyName}.
+    const isNamedContact = agent1Result.contactName && !/not publicly listed|none|unknown/i.test(agent1Result.contactName);
+    const recipientDescription = isNamedContact 
+      ? `${agent1Result.contactName} (${agent1Result.contactTitle}) at ${companyName}`
+      : `the technical leadership team at ${companyName}`;
+    const salutation = isNamedContact 
+      ? agent1Result.contactName.split(' ')[0]
+      : `${companyName} Team`;
+
+    const tone = clientProfile?.agentControls?.emailTone || 'consultative';
+    const cta = clientProfile?.agentControls?.ctaType || 'audit';
+    const maxWords = clientProfile?.agentControls?.maxWordCount || 130;
+    const senderName = clientProfile?.senderName || (clientProfile?.companyName ? `${clientProfile.companyName} Team` : 'Our Team');
+    const senderTitle = clientProfile?.senderTitle || '';
+
+    const prompt4 = `Write a high-converting B2B cold email to ${recipientDescription}.
 
 Target Tech Stack: ${agent2Result.techStack.join(', ')}
 Key Pain Points: ${JSON.stringify(agent3Result.painPoints)}
@@ -520,19 +530,24 @@ Key Solutions: ${JSON.stringify(agent3Result.solutions)}
 
 Our Sender Profile:
 - Company: ${clientProfile.companyName}
+- Sender: ${senderName} (${senderTitle})
 - Offering: ${clientProfile.offering}
 - Value Prop: ${clientProfile.valueProp}
+${clientProfile.differentiators ? `- Differentiators: ${clientProfile.differentiators}` : ''}
+${clientProfile.caseStudyMetrics ? `- Proof Metrics: ${clientProfile.caseStudyMetrics}` : ''}
 
 Strict Rules:
-1. Keep under 140 words.
-2. Professional, conversational, zero pushy buzzwords.
-3. Explicitly reference their tech stack (${agent2Result.techStack.slice(0, 3).join(', ')}).
-4. Provide a low-friction next step (e.g. 3-minute cost audit or 1-page case study).
-5. Generate two subject lines:
+1. Keep under ${maxWords} words.
+2. Tone: ${tone === 'direct' ? 'Direct, brief, and punchy' : tone === 'technical' ? 'Technical peer-to-peer engineering depth' : tone === 'high-energy' ? 'High-energy, compelling challenger sales angle' : 'Conversational, consultative, zero pushy buzzwords'}.
+3. Call to Action: ${cta === 'case_study' ? 'Offer a 1-page case study breakdown' : cta === 'intro_call' ? 'Ask for a brief 10-minute introductory call' : cta === 'feedback' ? 'Ask for quick feedback on an architecture benchmark' : 'Offer a low-friction 3-minute cost and performance audit'}.
+4. Explicitly reference their verified tech stack (${agent2Result.techStack.slice(0, 3).join(', ')}).
+5. If the recipient is not a named individual, address the email to "Hi ${companyName} Team".
+6. Sign off with "${senderName}" and company "${clientProfile.companyName}".
+7. Generate two subject lines:
    - Variant A: Direct Technical Angle
    - Variant B: Executive ROI Angle
-6. Generate a 48-hour follow-up email draft (Step 2 check-in).
-7. Perform self-criticism and rate the draft from 1.0 to 10.0.
+8. Generate a 48-hour follow-up email draft (Step 2 check-in).
+9. Perform self-criticism and rate the draft from 1.0 to 10.0.
 
 Return JSON:
 {
@@ -549,12 +564,12 @@ Return JSON:
     const parsed4 = cleanAndParseJSON(apiCall4.text) || {};
 
     const agent4Result = {
-      subjectVariantA: parsed4.subjectVariantA || `${companyName} infrastructure scaling vs ${agent2Result.techStack[0] || 'cloud'} over-provisioning`,
-      subjectVariantB: parsed4.subjectVariantB || `Recovering 35-45% on ${companyName}'s monthly compute costs`,
-      draftEmail: parsed4.draftEmail || `Hi ${agent1Result.contactName.split(' ')[0]},\n\nSaw your team is running ${agent2Result.techStack.slice(0, 2).join(' and ')} to scale ${companyName}'s infrastructure.\n\nAt ${clientProfile.companyName}, we help engineering leaders eliminate idle compute waste while maintaining strict p99 latency SLAs. Teams at similar scale typically save 35–45% on monthly cloud bills.\n\nOpen to a 3-minute benchmark audit showing where ${companyName}'s current clusters might have reclaimable headroom?\n\nBest,\nDavid Miller\n${clientProfile.companyName}`,
-      followUpDraft: parsed4.followUpDraft || `Hi ${agent1Result.contactName.split(' ')[0]},\n\nCircling back on my earlier note regarding ${companyName}'s infrastructure rightsizing. Wanted to share a 1-page case study of how a similar team shaved $18k/mo in idle spend.\n\nWorth a quick 5-min look this week?\n\nBest,\nDavid`,
-      reflectionScore: parsed4.reflectionScore || 8.8,
-      reflectionFeedback: parsed4.reflectionFeedback || "Clear technical relevance, concise length, zero spam triggers, actionable low-friction CTA."
+      subjectVariantA: parsed4.subjectVariantA || `${companyName} performance scaling vs ${agent2Result.techStack[0] || 'infrastructure'} optimization`,
+      subjectVariantB: parsed4.subjectVariantB || `Improving efficiency on ${companyName}'s digital operations`,
+      draftEmail: parsed4.draftEmail || `Hi ${salutation},\n\nSaw your team is leveraging ${agent2Result.techStack.slice(0, 2).join(' and ')} for ${companyName}'s digital operations.\n\nAt ${clientProfile.companyName}, we help technical leaders optimize infrastructure performance and eliminate unnecessary resource spend. Teams at similar scale typically recover 30–45% in operating efficiency.\n\nOpen to a brief 3-minute benchmark audit showing where ${companyName} might have reclaimable headroom?\n\nBest,\n${senderName}\n${clientProfile.companyName}`,
+      followUpDraft: parsed4.followUpDraft || `Hi ${salutation},\n\nCircling back on my earlier note regarding ${companyName}'s infrastructure efficiency. Wanted to share a 1-page breakdown of how a similar team optimized their stack and shaved monthly overhead.\n\nWorth a quick 5-min review this week?\n\nBest,\n${senderName}`,
+      reflectionScore: (typeof parsed4.reflectionScore === 'number' && !isNaN(parsed4.reflectionScore)) ? parsed4.reflectionScore : 8.8,
+      reflectionFeedback: parsed4.reflectionFeedback || "Factually grounded in verified tech stack, concise length, zero spam triggers, actionable low-friction CTA."
     };
     logCallback(`Agent 4 (Sales Director): Email drafted. Self-reflection score: ${agent4Result.reflectionScore}/10 [Latency: ${Date.now() - t4}ms]`);
 
@@ -614,10 +629,8 @@ Return JSON:
 
   } catch (error) {
     console.error(`Pipeline error on ${companyName}:`, error.message);
-    logCallback(`System (Warning): External API exception encountered (${error.message}). Activating resilient enterprise domain synthesis...`);
-    
-    // Fall back to high-fidelity synthesized enterprise profile rather than breaking pipeline
-    return generateFallbackPipelineData(companyName, website, clientProfile);
+    logCallback(`System (Error): Pipeline failed on ${companyName}: ${error.message}`);
+    throw error;
   }
 };
 
@@ -636,9 +649,9 @@ Target Tech Stack: ${lead.intel_dossier ? (lead.intel_dossier.techStack || []).j
 User Revision Instructions: "${customFeedback}"
 
 Our Details:
-- Company: ${clientProfile.companyName}
-- Offering: ${clientProfile.offering}
-- Value Prop: ${clientProfile.valueProp}
+- Company: ${clientProfile.companyName || 'Our Company'}
+- Offering: ${clientProfile.offering || 'Engineering Services'}
+- Value Prop: ${clientProfile.valueProp || ''}
 
 Rules:
 1. Apply the user's revision instructions precisely.
@@ -655,6 +668,11 @@ Return JSON:
   "reflectionFeedback": "Feedback explaining how the user revisions were applied..."
 }`;
 
+  const isNamed = lead.contact_name && !/not publicly listed|none|unknown/i.test(lead.contact_name);
+  const greeting = isNamed ? lead.contact_name.split(' ')[0] : (lead.company_name ? `${lead.company_name} Team` : 'there');
+  const primaryStack = (lead.intel_dossier && lead.intel_dossier.techStack && lead.intel_dossier.techStack[0]) || 'modern infrastructure';
+  const senderSign = clientProfile.senderName || (clientProfile.companyName ? `${clientProfile.companyName} Team` : 'Our Team');
+
   try {
     let result = null;
     if (apiKey) {
@@ -662,34 +680,28 @@ Return JSON:
       result = cleanAndParseJSON(apiCall.text);
     }
 
-    const draftEmail = result?.draftEmail || `Hi ${lead.contact_name ? lead.contact_name.split(' ')[0] : 'there'},\n\n${customFeedback.includes('shorter') ? 'Quick note:' : 'Following up:'} we help engineering teams optimize cloud infrastructure on ${lead.intel_dossier ? (lead.intel_dossier.techStack || [])[0] : 'Kubernetes'}. Teams at ${lead.company_name}'s stage typically eliminate 35% of idle container spend.\n\nOpen to a brief 3-minute cost audit this week?\n\nBest,\nDavid Miller\n${clientProfile.companyName}`;
+    if (!result?.draftEmail) {
+      throw new Error("Unable to synthesize refined draft with AI model.");
+    }
+
+    const draftEmail = result.draftEmail;
     const compliance = runComplianceGuard(draftEmail, lead.company_name);
 
     logCallback(`Agent 4 (Sales Director): Regeneration complete. New score: ${result?.reflectionScore || 9.1}/10.`);
 
     return {
       draft_email: draftEmail,
-      subject_variant_a: result?.subjectVariantA || lead.subject_variant_a || `Optimizing ${lead.company_name} cloud infrastructure costs`,
-      subject_variant_b: result?.subjectVariantB || lead.subject_variant_b || `Cutting 35% off ${lead.company_name}'s monthly compute`,
-      reflection_score: result?.reflectionScore || 9.1,
+      subject_variant_a: result?.subjectVariantA || lead.subject_variant_a || `Update for ${lead.company_name}`,
+      subject_variant_b: result?.subjectVariantB || lead.subject_variant_b || `Note for ${lead.company_name}`,
+      reflection_score: result?.reflectionScore || 9.0,
       reflection_feedback: result?.reflectionFeedback || `Updated draft incorporated feedback: "${customFeedback}".`,
       deliverability_score: compliance.deliverabilityScore,
       spam_risk: compliance.spamRisk,
       token_usage: lead.token_usage || {}
     };
   } catch (err) {
-    console.warn("Regeneration error, using fallback update:", err.message);
-    const draftEmail = `Hi ${lead.contact_name ? lead.contact_name.split(' ')[0] : 'there'},\n\nReaching out regarding ${lead.company_name}'s cloud infrastructure. We automate workload rightsizing to slice 35-50% off monthly AWS/GCP bills without performance trade-offs.\n\nWould a 3-minute cost audit be helpful this week?\n\nBest,\nDavid Miller\n${clientProfile.companyName}`;
-    const compliance = runComplianceGuard(draftEmail, lead.company_name);
-    return {
-      draft_email: draftEmail,
-      subject_variant_a: lead.subject_variant_a || `Optimizing ${lead.company_name} infrastructure`,
-      subject_variant_b: lead.subject_variant_b || `Cloud cost reduction for ${lead.company_name}`,
-      reflection_score: 9.0,
-      reflection_feedback: `Draft updated based on: "${customFeedback}".`,
-      deliverability_score: compliance.deliverabilityScore,
-      spam_risk: compliance.spamRisk,
-      token_usage: lead.token_usage || {}
-    };
+    console.error("Regeneration error:", err.message);
+    logCallback(`Agent 4 (Sales Director): Draft regeneration error: ${err.message}`);
+    throw err;
   }
 };

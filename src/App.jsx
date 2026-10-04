@@ -28,7 +28,9 @@ import {
   Mail,
   Zap,
   Clock,
-  Briefcase
+  Briefcase,
+  LayoutDashboard,
+  Building
 } from 'lucide-react';
 
 import CommandPalette from './components/CommandPalette.jsx';
@@ -38,15 +40,20 @@ import BatchImportModal from './components/BatchImportModal.jsx';
 import AnalyticsView from './components/AnalyticsView.jsx';
 import CampaignsView from './components/CampaignsView.jsx';
 import IntegrationsView from './components/IntegrationsView.jsx';
+import DashboardView from './components/DashboardView.jsx';
+import ProfileSetupView from './components/ProfileSetupView.jsx';
+import PipelineControlsView from './components/PipelineControlsView.jsx';
 
 export default function App() {
   // Navigation View State
-  const [activeView, setActiveView] = useState('pipeline'); // 'pipeline' | 'agents' | 'analytics' | 'campaigns' | 'integrations'
+  const [activeView, setActiveView] = useState('dashboard'); // 'dashboard' | 'pipeline' | 'profile' | 'controls' | 'agents' | 'analytics' | 'campaigns' | 'integrations'
   const [viewMode, setViewMode] = useState('kanban'); // 'kanban' | 'table'
 
   // Data States
   const [leads, setLeads] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
+  const [clientProfile, setClientProfile] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
   const [selectedLead, setSelectedLead] = useState(null);
   const [leadLogs, setLeadLogs] = useState([]);
   const [selectedLeadIds, setSelectedLeadIds] = useState(new Set());
@@ -127,9 +134,92 @@ export default function App() {
     }
   };
 
+  // Fetch Settings / Profile
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const data = await res.json();
+        setClientProfile(data);
+      }
+    } catch (err) {
+      console.error('Error fetching settings:', err);
+    }
+  };
+
+  // Fetch Analytics
+  const fetchAnalytics = async () => {
+    try {
+      const res = await fetch('/api/analytics');
+      if (res.ok) {
+        const data = await res.json();
+        setAnalytics(data);
+      }
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+    }
+  };
+
+  // Save updated profile
+  const handleSaveProfile = async (updated) => {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    });
+    if (!res.ok) throw new Error('Failed to update settings');
+    setClientProfile(updated);
+    fetchSettings();
+    fetchAnalytics();
+  };
+
+  // Navigate with optional filter/search preset
+  const handleNavigate = (view, options = {}) => {
+    setActiveView(view);
+    if (options.status) {
+      setStatusFilter(options.status);
+    }
+    if (options.search !== undefined) {
+      setSearchQuery(options.search);
+    }
+  };
+
+  // Quick Approve lead from dashboard
+  const handleQuickApprove = async (leadId) => {
+    try {
+      const res = await fetch(`/api/leads/${leadId}/approve`, { method: 'POST' });
+      if (res.ok) {
+        addToast('Lead approved for outreach sequence!', 'success');
+        fetchLeads();
+        fetchAnalytics();
+      }
+    } catch (err) {
+      addToast(`Approval failed: ${err.message}`, 'error');
+    }
+  };
+
+  // Quick Send lead from dashboard
+  const handleQuickSend = async (leadId) => {
+    try {
+      const res = await fetch(`/api/leads/${leadId}/send`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        addToast('Outbound email dispatched successfully via SMTP!', 'success');
+        fetchLeads();
+        fetchAnalytics();
+      } else {
+        addToast(`Send failed: ${data.error || 'Check SMTP configuration'}`, 'error');
+      }
+    } catch (err) {
+      addToast(`Send error: ${err.message}`, 'error');
+    }
+  };
+
   useEffect(() => {
     fetchLeads();
     fetchCampaigns();
+    fetchSettings();
+    fetchAnalytics();
   }, []);
 
   // Poll active researching leads
@@ -360,15 +450,34 @@ export default function App() {
         </div>
 
         <nav className="sidebar-nav">
-          <div className="nav-section-label">Operations</div>
+          <div className="nav-section-label">Command Center</div>
           
+          <div 
+            onClick={() => setActiveView('dashboard')}
+            className={`nav-link ${activeView === 'dashboard' ? 'active' : ''}`}
+          >
+            <LayoutDashboard size={16} className="nav-icon" />
+            <span>Dashboard</span>
+            <span className="enterprise-badge" style={{ fontSize: 9, padding: '1px 5px' }}>Live</span>
+          </div>
+
           <div 
             onClick={() => setActiveView('pipeline')}
             className={`nav-link ${activeView === 'pipeline' ? 'active' : ''}`}
           >
-            <Zap size={16} className="nav-icon" />
-            <span>Outreach Pipeline</span>
+            <Kanban size={16} className="nav-icon" />
+            <span>Accounts & Pipeline</span>
             <span className="nav-badge">{leads.length}</span>
+          </div>
+
+          <div className="nav-section-label">Intelligence & Controls</div>
+
+          <div 
+            onClick={() => setActiveView('controls')}
+            className={`nav-link ${activeView === 'controls' ? 'active' : ''}`}
+          >
+            <Sliders size={16} className="nav-icon" />
+            <span>Pipeline Controls</span>
           </div>
 
           <div 
@@ -376,7 +485,7 @@ export default function App() {
             className={`nav-link ${activeView === 'agents' ? 'active' : ''}`}
           >
             <Activity size={16} className="nav-icon" />
-            <span>Agent Studio (DAG)</span>
+            <span>5-Agent Architecture</span>
           </div>
 
           <div 
@@ -387,7 +496,15 @@ export default function App() {
             <span>Executive ROI</span>
           </div>
 
-          <div className="nav-section-label">Configuration</div>
+          <div className="nav-section-label">Configuration & Setup</div>
+
+          <div 
+            onClick={() => setActiveView('profile')}
+            className={`nav-link ${activeView === 'profile' ? 'active' : ''}`}
+          >
+            <Building size={16} className="nav-icon" />
+            <span>Profile & ICP Setup</span>
+          </div>
 
           <div 
             onClick={() => setActiveView('campaigns')}
@@ -408,10 +525,17 @@ export default function App() {
 
         {/* Footer Identity */}
         <div className="sidebar-footer">
-          <div className="client-identity-card">
-            <div className="client-avatar">AC</div>
+          <div 
+            className="client-identity-card" 
+            onClick={() => setActiveView('profile')}
+            style={{ cursor: 'pointer' }}
+            title="Click to edit Company & ICP Profile"
+          >
+            <div className="client-avatar">
+              {clientProfile?.companyName ? clientProfile.companyName.substring(0, 2).toUpperCase() : 'LL'}
+            </div>
             <div className="client-details">
-              <div className="client-company">AeroCloud Solutions</div>
+              <div className="client-company">{clientProfile?.companyName || 'LeadLens Workspace'}</div>
               <div className="client-tier">
                 <span className="pulse-dot" />
                 <span>Enterprise Active</span>
@@ -426,9 +550,9 @@ export default function App() {
         {/* Top Command Bar */}
         <header className="top-command-bar">
           <div className="command-bar-left">
-            <div className="campaign-selector-pill" onClick={() => setActiveView('campaigns')}>
+            <div className="campaign-selector-pill" onClick={() => setActiveView('profile')}>
               <span className="campaign-dot" />
-              <span>Campaign: <strong>Cloud Cost Optimization</strong></span>
+              <span>Workspace: <strong>{clientProfile?.companyName || 'LeadLens Enterprise'}</strong></span>
             </div>
 
             <div 
@@ -468,6 +592,42 @@ export default function App() {
         {/* Workspace Views */}
         <div className="workspace-container">
           
+          {/* VIEW: DASHBOARD */}
+          {activeView === 'dashboard' && (
+            <DashboardView 
+              leads={leads}
+              analytics={analytics}
+              clientProfile={clientProfile}
+              onNavigate={handleNavigate}
+              onSelectLead={lead => {
+                setSelectedLead(lead);
+                fetchLeadLogs(lead.id);
+              }}
+              onQuickApprove={handleQuickApprove}
+              onQuickSend={handleQuickSend}
+              onOpenNewLeadModal={() => setIsNewLeadModalOpen(true)}
+              onOpenBatchModal={() => setIsBatchModalOpen(true)}
+            />
+          )}
+
+          {/* VIEW: PROFILE & ICP SETUP */}
+          {activeView === 'profile' && (
+            <ProfileSetupView 
+              clientProfile={clientProfile}
+              onSaveProfile={handleSaveProfile}
+              addToast={addToast}
+            />
+          )}
+
+          {/* VIEW: PIPELINE CONTROLS & AGENT STUDIO */}
+          {activeView === 'controls' && (
+            <PipelineControlsView 
+              clientProfile={clientProfile}
+              onSaveProfile={handleSaveProfile}
+              addToast={addToast}
+            />
+          )}
+
           {/* VIEW: PIPELINE */}
           {activeView === 'pipeline' && (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -773,6 +933,7 @@ export default function App() {
       {selectedLead && (
         <LeadDrawer
           lead={selectedLead}
+          clientProfile={clientProfile}
           logs={leadLogs}
           onClose={() => setSelectedLead(null)}
           onUpdateDraft={handleUpdateDraft}

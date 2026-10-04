@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Sparkles, Send, CheckCircle, FileText, Database, Settings, ArrowRight, X } from 'lucide-react';
+import { Search, Sparkles, Send, CheckCircle, FileText, Database, Settings, ArrowRight, X, LayoutDashboard, Building, Sliders } from 'lucide-react';
 
 export default function CommandPalette({ 
   isOpen, 
@@ -36,12 +36,14 @@ export default function CommandPalette({
   ).slice(0, 5) : leads.slice(0, 4);
 
   const quickActions = [
+    { id: 'view-dashboard', label: 'Go to Executive Dashboard', icon: LayoutDashboard, action: () => { onClose(); onNavigate('dashboard'); } },
+    { id: 'view-profile', label: 'Configure Company & ICP Profile', icon: Building, action: () => { onClose(); onNavigate('profile'); } },
+    { id: 'view-controls', label: 'Adjust Pipeline & Agent Controls', icon: Sliders, action: () => { onClose(); onNavigate('controls'); } },
     { id: 'new-lead', label: 'Trigger Single Prospect Research', icon: Sparkles, action: () => { onClose(); onOpenNewLeadModal(); } },
     { id: 'batch-import', label: 'Batch Import Prospects (CSV / Domain List)', icon: Database, action: () => { onClose(); onOpenBatchModal(); } },
     { id: 'view-pipeline', label: 'Go to Pipeline Board', icon: FileText, action: () => { onClose(); onNavigate('pipeline'); } },
     { id: 'view-agents', label: 'Go to Agent Studio (DAG Graph)', icon: Sparkles, action: () => { onClose(); onNavigate('agents'); } },
     { id: 'view-analytics', label: 'Go to Executive ROI & Telemetry', icon: Settings, action: () => { onClose(); onNavigate('analytics'); } },
-    { id: 'view-campaigns', label: 'Configure ICP & Campaigns', icon: Settings, action: () => { onClose(); onNavigate('campaigns'); } },
     { id: 'view-integrations', label: 'Diagnostics & SMTP Settings', icon: Send, action: () => { onClose(); onNavigate('integrations'); } },
   ].filter(a => a.label.toLowerCase().includes(query.toLowerCase()));
 

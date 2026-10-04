@@ -27,6 +27,7 @@ import {
 
 export default function LeadDrawer({
   lead,
+  clientProfile = null,
   onClose,
   onUpdateDraft,
   onRegenerate,
@@ -407,7 +408,9 @@ export default function LeadDrawer({
                   <button
                     onClick={() => {
                       setSelectedSequenceStep(2);
-                      setEditableEmail(lead.follow_up_draft || `Hi ${lead.contact_name ? lead.contact_name.split(' ')[0] : 'there'},\n\nFollowing up on my note regarding ${lead.company_name}'s infrastructure rightsizing. Wanted to share a 1-page case study on how a similar team shaved $18k/mo in idle compute.\n\nWorth a brief 5-min look this week?\n\nBest,\nDavid`);
+                      const isNamed = lead.contact_name && !/not publicly listed|none|unknown/i.test(lead.contact_name);
+                      const greeting = isNamed ? lead.contact_name.split(' ')[0] : (lead.company_name ? `${lead.company_name} Team` : 'there');
+                      setEditableEmail(lead.follow_up_draft || `Hi ${greeting},\n\nFollowing up on my note regarding ${lead.company_name}'s infrastructure efficiency. Wanted to share a 1-page case study on how a similar team shaved substantial idle compute overhead.\n\nWorth a brief 5-min look this week?\n\nBest,\nDavid`);
                     }}
                     className={`btn btn-sm ${selectedSequenceStep === 2 ? 'btn-primary' : 'btn-secondary'}`}
                   >
@@ -586,7 +589,9 @@ export default function LeadDrawer({
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: '#8b949e' }}>
                         <div>
-                          <strong style={{ color: '#c9d1d9' }}>David Miller</strong> &lt;david.miller@aerocloud.io&gt;
+                          <strong style={{ color: '#c9d1d9' }}>
+                            {clientProfile?.senderName || (clientProfile?.companyName ? `${clientProfile.companyName} Team` : 'Your Name')}
+                          </strong> &lt;{clientProfile?.senderEmail || 'you@company.com'}&gt;
                           <div style={{ fontSize: 11 }}>to {lead.contact_email || 'prospect@company.com'}</div>
                         </div>
                         <div>10:42 AM (Just now)</div>
