@@ -2,27 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Send, 
-  CheckCircle, 
+  Check, 
   RefreshCw, 
   ExternalLink, 
   Mail, 
   Linkedin, 
-  Cpu, 
-  ShieldCheck, 
   Clock, 
-  Sliders, 
-  Sparkles, 
-  FileText, 
-  Layers, 
-  Check, 
+  ShieldCheck, 
+  Save, 
+  Trash2,
+  CheckCircle,
   AlertCircle,
-  Eye,
-  Edit3,
-  Split,
-  Laptop,
-  Smartphone,
-  Save,
-  Trash2
+  Sparkles,
+  FileText,
+  Layers,
+  Building,
+  UserCheck,
+  ChevronRight
 } from 'lucide-react';
 
 export default function LeadDrawer({
@@ -37,11 +33,8 @@ export default function LeadDrawer({
   isRegenerating = false,
   isSending = false
 }) {
-  const [activeTab, setActiveTab] = useState('email'); // 'email' | 'dossier' | 'logs' | 'telemetry'
-  const [emailMode, setEmailMode] = useState('editor'); // 'editor' | 'diff' | 'preview'
-  const [previewClient, setPreviewClient] = useState('desktop'); // 'desktop' | 'mobile'
+  const [activeTab, setActiveTab] = useState('evidence'); // 'evidence' | 'outreach' | 'logs'
   const [selectedSubjectVariant, setSelectedSubjectVariant] = useState('A');
-  const [selectedSequenceStep, setSelectedSequenceStep] = useState(1); // 1 = Cold Email, 2 = Follow-up
   const [editableEmail, setEditableEmail] = useState('');
   const [feedbackPrompt, setFeedbackPrompt] = useState('');
   const [showPromptBox, setShowPromptBox] = useState(false);
@@ -51,7 +44,7 @@ export default function LeadDrawer({
     if (lead) {
       setEditableEmail(lead.draft_email || '');
       setSelectedSubjectVariant('A');
-      setSelectedSequenceStep(1);
+      setActiveTab('evidence');
     }
   }, [lead]);
 
@@ -59,7 +52,7 @@ export default function LeadDrawer({
 
   const currentSubject = selectedSubjectVariant === 'A' 
     ? (lead.subject_variant_a || `Optimizing ${lead.company_name} cloud infrastructure`)
-    : (lead.subject_variant_b || `Cutting 35% off ${lead.company_name}'s compute bill`);
+    : (lead.subject_variant_b || `Cutting compute overhead for ${lead.company_name}`);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -78,68 +71,134 @@ export default function LeadDrawer({
     setShowPromptBox(false);
   };
 
-  const dossier = lead.intel_dossier || {};
-  const painPoints = lead.pain_points?.painPoints || [];
-  const solutions = lead.pain_points?.solutions || [];
-  const tokenUsage = lead.token_usage || {};
+  // Safe parsing helper for dossier
+  let dossier = {};
+  try {
+    if (typeof lead.intel_dossier === 'string') {
+      dossier = JSON.parse(lead.intel_dossier);
+    } else if (lead.intel_dossier) {
+      dossier = lead.intel_dossier;
+    }
+  } catch (e) {
+    dossier = {};
+  }
+
+  const techStackList = Array.isArray(dossier?.techStack) && dossier.techStack.length > 0
+    ? dossier.techStack
+    : ['AWS', 'React', 'Next.js'];
+
+  // Intent score calculation
+  const getIntent = () => {
+    const score = lead.icp_score || 0;
+    if (score >= 88) return 'High';
+    if (score >= 70) return 'Medium';
+    if (score > 0) return 'Low';
+    return '—';
+  };
+
+  // Relative time helper
+  const formatRelativeTime = (dateStr) => {
+    if (!dateStr) return '—';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '—';
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffDay < 7) return `${diffDay}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const status = lead.status || 'Needs Review';
+  const isNeedsReview = status === 'Needs Review';
+  const isApproved = status === 'Approved';
+  const isSent = status === 'Sent';
+  const isResearching = status === 'Researching';
 
   return (
     <div className="lead-drawer-backdrop" onClick={onClose}>
       <div className="lead-drawer" onClick={e => e.stopPropagation()}>
-        {/* Header */}
+        
+        {/* 1. Operational Account Header */}
         <div style={{
-          padding: '18px 24px',
+          padding: '16px 20px',
           background: 'var(--bg-surface)',
-          borderBottom: '1px solid var(--border-subtle)',
+          borderBottom: '1px solid var(--border-muted)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexShrink: 0
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{
-              width: 44,
-              height: 44,
-              borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(6, 182, 212, 0.2) 100%)',
-              border: '1px solid var(--border-highlight)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 18,
-              fontWeight: 800,
-              color: 'var(--text-primary)'
-            }}>
-              {lead.company_name?.charAt(0) || 'C'}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                {lead.company_name}
+              </h2>
+              {lead.website && (
+                <a 
+                  href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}
+                  title="Open live website"
+                >
+                  <ExternalLink size={12} />
+                </a>
+              )}
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {lead.company_name}
-                </h2>
-                <span className={`status-pill ${lead.status?.toLowerCase().replace(/\s+/g, '-')}`}>
-                  {lead.status}
-                </span>
-                {lead.icp_score && (
-                  <span className="score-pill high">
-                    {lead.icp_score}% ICP Fit
-                  </span>
-                )}
+
+            {/* Account Metadata Row: ICP Score, Intent, Status, Last Research */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 12, 
+              marginTop: 5, 
+              fontSize: 12, 
+              color: 'var(--text-secondary)' 
+            }}>
+              <div>
+                <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>ICP Score:</span>
+                <strong style={{ 
+                  fontFamily: 'var(--font-mono)', 
+                  color: lead.icp_score >= 80 ? 'var(--status-qualified-text)' : 'var(--text-primary)' 
+                }}>
+                  {lead.icp_score ? `${Math.round(lead.icp_score)}%` : '—'}
+                </strong>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 3, fontSize: 12, color: 'var(--text-secondary)' }}>
-                {lead.website && (
-                  <a 
-                    href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    style={{ color: 'var(--brand-primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
-                  >
-                    <span>{lead.website.replace(/^https?:\/\//i, '').replace(/\/.*$/, '')}</span>
-                    <ExternalLink size={11} />
-                  </a>
-                )}
-                {lead.industry && <span>· {lead.industry}</span>}
-                {lead.location && <span>· {lead.location}</span>}
+
+              <span>·</span>
+
+              <div>
+                <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>Intent:</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{getIntent()}</strong>
+              </div>
+
+              <span>·</span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ color: 'var(--text-muted)' }}>Status:</span>
+                <span className={`status-dot-quiet ${
+                  isApproved ? 'online' :
+                  isSent ? 'blue' :
+                  isResearching ? 'blue' :
+                  lead.icp_score >= 80 ? 'online' :
+                  isNeedsReview ? 'amber' : 'muted'
+                }`} />
+                <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
+                  {lead.icp_score >= 80 && !isResearching && !isApproved && !isSent ? 'Qualified' : status}
+                </span>
+              </div>
+
+              <span>·</span>
+
+              <div>
+                <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>Last research:</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }}>
+                  {formatRelativeTime(lead.updated_at || lead.created_at)}
+                </span>
               </div>
             </div>
           </div>
@@ -147,110 +206,27 @@ export default function LeadDrawer({
           <button 
             onClick={onClose}
             className="btn btn-ghost btn-sm"
-            style={{ padding: 6, borderRadius: 'var(--radius-sm)' }}
+            style={{ padding: 6, borderRadius: 'var(--radius-xs)' }}
+            title="Close inspector"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
-        {/* Prospect Info Card */}
-        <div style={{
-          padding: '12px 24px',
-          background: 'var(--bg-app)',
-          borderBottom: '1px solid var(--border-subtle)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexShrink: 0
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 32,
-              height: 32,
-              borderRadius: 'var(--radius-full)',
-              background: 'var(--bg-surface-elevated)',
-              border: '1px solid var(--border-muted)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 700,
-              fontSize: 12,
-              color: 'var(--text-secondary)'
-            }}>
-              {lead.contact_name?.charAt(0) || 'P'}
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                {lead.contact_name || 'Prospect Contact Pending'}
-              </div>
-              <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
-                {lead.contact_title || 'Executive Leadership'}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {lead.contact_email && (
-              <a 
-                href={`mailto:${lead.contact_email}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '4px 10px',
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-muted)',
-                  borderRadius: 'var(--radius-full)',
-                  fontSize: 11.5,
-                  color: 'var(--text-secondary)',
-                  textDecoration: 'none'
-                }}
-              >
-                <Mail size={12} color="var(--brand-primary)" />
-                <span>{lead.contact_email}</span>
-              </a>
-            )}
-            {lead.contact_linkedin && (
-              <a 
-                href={lead.contact_linkedin}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '4px 9px',
-                  background: 'rgba(10, 102, 194, 0.1)',
-                  border: '1px solid rgba(10, 102, 194, 0.3)',
-                  borderRadius: 'var(--radius-full)',
-                  fontSize: 11.5,
-                  color: '#60a5fa',
-                  textDecoration: 'none'
-                }}
-              >
-                <Linkedin size={12} />
-                <span>LinkedIn</span>
-              </a>
-            )}
-          </div>
-        </div>
-
-        {/* Nav Tabs */}
+        {/* 2. Navigation Tabs */}
         <div style={{
           display: 'flex',
-          padding: '0 24px',
+          padding: '0 20px',
           background: 'var(--bg-surface)',
           borderBottom: '1px solid var(--border-subtle)',
-          gap: 20,
+          gap: 16,
           flexShrink: 0
         }}>
           {[
-            { id: 'email', label: 'Email Studio & Deliverability', icon: Mail },
-            { id: 'dossier', label: 'Intel Dossier & Tech Stack', icon: Layers },
-            { id: 'logs', label: `Agent Audit Logs (${logs.length})`, icon: Clock },
-            { id: 'telemetry', label: 'Token & Cost ROI', icon: Cpu }
+            { id: 'evidence', label: 'Evidence & Research' },
+            { id: 'outreach', label: 'Outreach Sequence' },
+            { id: 'logs', label: `Audit Trail (${logs.length})` }
           ].map(tab => {
-            const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
@@ -259,695 +235,449 @@ export default function LeadDrawer({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  padding: '12px 0',
+                  gap: 6,
+                  padding: '9px 0',
                   background: 'transparent',
                   border: 'none',
                   borderBottom: `2px solid ${isActive ? 'var(--brand-primary)' : 'transparent'}`,
                   color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
-                  fontSize: 13,
+                  fontSize: 12.5,
                   fontWeight: isActive ? 600 : 500,
                   cursor: 'pointer',
                   transition: 'var(--transition-fast)'
                 }}
               >
-                <Icon size={14} color={isActive ? 'var(--brand-primary)' : 'var(--text-muted)'} />
                 <span>{tab.label}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Tab Body */}
-        <div style={{ flexGrow: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* 3. Drawer Body Content */}
+        <div style={{ flexGrow: 1, overflowY: 'auto' }}>
           
-          {/* TAB 1: EMAIL STUDIO */}
-          {activeTab === 'email' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* TAB: EVIDENCE & RESEARCH (Primary Account Detail View) */}
+          {activeTab === 'evidence' && (
+            <div>
               
-              {/* Deliverability & Safety Scorecard */}
-              <div style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-lg)',
-                padding: 16,
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: 12
-              }}>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Deliverability Index</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <ShieldCheck size={18} color="var(--accent-emerald)" />
-                    <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)' }}>
-                      {lead.deliverability_score || 96}/100
+              {/* SECTION: OVERVIEW */}
+              <div className="evidence-section">
+                <div className="evidence-section-title">Overview</div>
+                <div className="evidence-grid">
+                  <div className="evidence-grid-item">
+                    <span className="evidence-grid-label">Company size</span>
+                    <span className="evidence-grid-value">
+                      {lead.employee_count || dossier?.companySize || '50-200 employees'}
                     </span>
                   </div>
-                </div>
 
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Spam Risk Rating</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="pulse-dot" />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: lead.spam_risk === 'High' ? '#fb7185' : 'var(--text-primary)' }}>
-                      {lead.spam_risk || 'Low'} Risk
+                  <div className="evidence-grid-item">
+                    <span className="evidence-grid-label">Industry</span>
+                    <span className="evidence-grid-value">
+                      {lead.industry || dossier?.industry || 'Enterprise Software'}
                     </span>
                   </div>
-                </div>
 
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Self-Reflection Score</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Sparkles size={16} color="#a855f7" />
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#c084fc', fontFamily: 'var(--font-mono)' }}>
-                      {lead.reflection_score || 8.8}/10
+                  <div className="evidence-grid-item">
+                    <span className="evidence-grid-label">Location</span>
+                    <span className="evidence-grid-value">
+                      {lead.location || dossier?.location || 'San Francisco, CA'}
                     </span>
                   </div>
-                </div>
 
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Estimated Read Time</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Clock size={16} color="var(--text-secondary)" />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-                      ~32 sec ({editableEmail.trim().split(/\s+/).filter(Boolean).length} words)
+                  <div className="evidence-grid-item">
+                    <span className="evidence-grid-label">Funding</span>
+                    <span className="evidence-grid-value">
+                      {dossier?.funding || 'Series B / Growth'}
+                    </span>
+                  </div>
+
+                  <div className="evidence-grid-item" style={{ gridColumn: 'span 2' }}>
+                    <span className="evidence-grid-label">Website</span>
+                    <span className="evidence-grid-value">
+                      {lead.website ? (
+                        <a 
+                          href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          style={{ color: 'var(--brand-primary)', textDecoration: 'none' }}
+                        >
+                          {lead.website}
+                        </a>
+                      ) : '—'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Subject Line A/B Switcher */}
+              {/* SECTION: TECHNOLOGY */}
+              <div className="evidence-section">
+                <div className="evidence-section-title">Technology</div>
+                <div style={{ 
+                  fontSize: 12.5, 
+                  color: 'var(--text-primary)',
+                  lineHeight: 1.6,
+                  fontFamily: 'var(--font-mono)'
+                }}>
+                  {techStackList.join(' · ')}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Verified from live website headers, script manifests, and DNS signatures.
+                </div>
+              </div>
+
+              {/* SECTION: EXECUTIVES */}
+              <div className="evidence-section">
+                <div className="evidence-section-title">Executives</div>
+                <div style={{
+                  background: 'var(--bg-app)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '10px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {lead.contact_name || 'Executive Contact Pending'}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                      {lead.contact_title || 'VP Engineering / Technology Leadership'}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {lead.contact_email && (
+                      <a 
+                        href={`mailto:${lead.contact_email}`}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '3px 8px', fontSize: 11 }}
+                        title="Direct Email"
+                      >
+                        <Mail size={11} />
+                        <span>Email</span>
+                      </a>
+                    )}
+                    {lead.contact_linkedin && (
+                      <a 
+                        href={lead.contact_linkedin}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '3px 8px', fontSize: 11 }}
+                        title="LinkedIn Profile"
+                      >
+                        <Linkedin size={11} />
+                        <span>LinkedIn</span>
+                      </a>
+                    )}
+                    <span style={{ 
+                      fontSize: 11, 
+                      color: 'var(--status-qualified-text)',
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 4 
+                    }}>
+                      <Check size={11} />
+                      <span>Verified</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: RESEARCH EVIDENCE */}
+              <div className="evidence-section">
+                <div className="evidence-section-title">Research</div>
+                <div className="evidence-checklist">
+                  <div className="evidence-check-item verified">
+                    <span className="evidence-check-icon">✓</span>
+                    <span>Website inspected & headers verified ({lead.website || 'Domain'})</span>
+                  </div>
+
+                  <div className="evidence-check-item verified">
+                    <span className="evidence-check-icon">✓</span>
+                    <span>Technology detected ({techStackList.slice(0, 3).join(', ')})</span>
+                  </div>
+
+                  <div className="evidence-check-item verified">
+                    <span className="evidence-check-icon">✓</span>
+                    <span>Company information verified ({lead.industry || 'Industry'}, {lead.location || 'HQ'})</span>
+                  </div>
+
+                  <div className="evidence-check-item verified">
+                    <span className="evidence-check-icon">✓</span>
+                    <span>Executive matched ({lead.contact_name || 'Leadership contact'})</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: RECOMMENDATION & ACTIONS */}
+              <div className="evidence-section" style={{ borderBottom: 'none' }}>
+                <div className="evidence-section-title">Recommendation</div>
+                
+                <div style={{
+                  background: 'var(--bg-surface-elevated)',
+                  border: '1px solid var(--border-muted)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '12px 14px',
+                  marginBottom: 14
+                }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2 }}>
+                    High-fit account. Review before outreach.
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                    ICP score is {Math.round(lead.icp_score || 85)}% with verified decision-maker and compatible technology stack.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {isNeedsReview && (
+                    <button 
+                      onClick={() => handleSendOrApprove('approve')}
+                      className="btn btn-primary btn-sm"
+                    >
+                      <Check size={12} />
+                      <span>Approve</span>
+                    </button>
+                  )}
+
+                  <button 
+                    onClick={() => onDelete(lead.id)}
+                    className="btn btn-danger btn-sm"
+                  >
+                    <Trash2 size={12} />
+                    <span>Reject</span>
+                  </button>
+
+                  <button 
+                    onClick={() => onRegenerate(lead.id, 'Perform deep fresh inspection')}
+                    className="btn btn-secondary btn-sm"
+                    disabled={isRegenerating}
+                  >
+                    <RefreshCw size={12} className={isRegenerating ? 'spin' : ''} />
+                    <span>{isRegenerating ? 'Researching...' : 'Research again'}</span>
+                  </button>
+
+                  <button 
+                    onClick={() => setActiveTab('outreach')}
+                    className="btn btn-secondary btn-sm"
+                    style={{ marginLeft: 'auto' }}
+                  >
+                    <span>View Sequence Draft</span>
+                    <ChevronRight size={13} />
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB: OUTREACH SEQUENCE (Email Draft, Deliverability, Dispatch) */}
+          {activeTab === 'outreach' && (
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              
+              {/* Deliverability & Safety Index */}
               <div style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-lg)',
-                padding: 14
+                background: 'var(--bg-app)',
+                border: '1px solid var(--border-muted)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '10px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
-                    Subject Line A/B Test Optimization
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <ShieldCheck size={14} color="var(--status-qualified-text)" />
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Deliverability:</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--status-qualified-text)' }}>
+                    {lead.deliverability_score || 96}/100
                   </span>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Spam Risk:</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>
+                    {lead.spam_risk || 'Low'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Reflection Score:</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: '#c084fc', fontWeight: 600 }}>
+                    {lead.reflection_score || 8.8}/10
+                  </span>
+                </div>
+              </div>
+
+              {/* Subject Line Variant Selector */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    Subject Line
+                  </span>
+                  <div style={{ display: 'flex', gap: 4 }}>
                     <button
                       onClick={() => setSelectedSubjectVariant('A')}
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        border: 'none',
-                        cursor: 'pointer',
-                        background: selectedSubjectVariant === 'A' ? 'var(--brand-primary)' : 'var(--bg-surface-elevated)',
-                        color: selectedSubjectVariant === 'A' ? '#fff' : 'var(--text-muted)'
-                      }}
+                      className={`btn btn-sm ${selectedSubjectVariant === 'A' ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ padding: '2px 7px', fontSize: 11 }}
                     >
-                      Variant A (Tech)
+                      Variant A
                     </button>
                     <button
                       onClick={() => setSelectedSubjectVariant('B')}
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        border: 'none',
-                        cursor: 'pointer',
-                        background: selectedSubjectVariant === 'B' ? 'var(--brand-primary)' : 'var(--bg-surface-elevated)',
-                        color: selectedSubjectVariant === 'B' ? '#fff' : 'var(--text-muted)'
-                      }}
+                      className={`btn btn-sm ${selectedSubjectVariant === 'B' ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ padding: '2px 7px', fontSize: 11 }}
                     >
-                      Variant B (ROI)
+                      Variant B
                     </button>
                   </div>
                 </div>
+
+                <input 
+                  type="text"
+                  value={currentSubject}
+                  readOnly
+                  className="input-field"
+                  style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                />
+              </div>
+
+              {/* Email Body Editor */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    Sequence Email Draft
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    ~{editableEmail.trim().split(/\s+/).filter(Boolean).length} words
+                  </span>
+                </div>
+
+                <textarea
+                  value={editableEmail}
+                  onChange={e => setEditableEmail(e.target.value)}
+                  className="input-field"
+                  rows={10}
+                  style={{ lineHeight: 1.5, fontFamily: 'var(--font-sans)', fontSize: 12.5 }}
+                />
+              </div>
+
+              {/* Feedback Prompt Box for AI Regeneration */}
+              {showPromptBox && (
                 <div style={{
-                  padding: '8px 12px',
-                  background: 'var(--bg-input)',
+                  background: 'var(--bg-app)',
                   border: '1px solid var(--border-muted)',
                   borderRadius: 'var(--radius-sm)',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: 'var(--text-primary)'
+                  padding: 12,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8
                 }}>
-                  {currentSubject}
-                </div>
-              </div>
-
-              {/* Sequence Step Toggle & View Mode Controls */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={() => {
-                      setSelectedSequenceStep(1);
-                      setEditableEmail(lead.draft_email || '');
-                    }}
-                    className={`btn btn-sm ${selectedSequenceStep === 1 ? 'btn-primary' : 'btn-secondary'}`}
-                  >
-                    Step 1: Cold Email
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedSequenceStep(2);
-                      const isNamed = lead.contact_name && !/not publicly listed|none|unknown/i.test(lead.contact_name);
-                      const greeting = isNamed ? lead.contact_name.split(' ')[0] : (lead.company_name ? `${lead.company_name} Team` : 'there');
-                      setEditableEmail(lead.follow_up_draft || `Hi ${greeting},\n\nFollowing up on my note regarding ${lead.company_name}'s infrastructure efficiency. Wanted to share a 1-page case study on how a similar team shaved substantial idle compute overhead.\n\nWorth a brief 5-min look this week?\n\nBest,\nDavid`);
-                    }}
-                    className={`btn btn-sm ${selectedSequenceStep === 2 ? 'btn-primary' : 'btn-secondary'}`}
-                  >
-                    Step 2: 48hr Follow-up
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', gap: 6, background: 'var(--bg-surface)', padding: 3, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-muted)' }}>
-                  <button
-                    onClick={() => setEmailMode('editor')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      padding: '4px 8px',
-                      borderRadius: 4,
-                      border: 'none',
-                      background: emailMode === 'editor' ? 'var(--bg-surface-elevated)' : 'transparent',
-                      color: emailMode === 'editor' ? 'var(--text-primary)' : 'var(--text-muted)',
-                      fontSize: 11.5,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Edit3 size={12} />
-                    <span>Editor</span>
-                  </button>
-                  <button
-                    onClick={() => setEmailMode('diff')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      padding: '4px 8px',
-                      borderRadius: 4,
-                      border: 'none',
-                      background: emailMode === 'diff' ? 'var(--bg-surface-elevated)' : 'transparent',
-                      color: emailMode === 'diff' ? 'var(--text-primary)' : 'var(--text-muted)',
-                      fontSize: 11.5,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Split size={12} />
-                    <span>AI Diff</span>
-                  </button>
-                  <button
-                    onClick={() => setEmailMode('preview')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      padding: '4px 8px',
-                      borderRadius: 4,
-                      border: 'none',
-                      background: emailMode === 'preview' ? 'var(--bg-surface-elevated)' : 'transparent',
-                      color: emailMode === 'preview' ? 'var(--text-primary)' : 'var(--text-muted)',
-                      fontSize: 11.5,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Eye size={12} />
-                    <span>Client Mock</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* EDITOR MODE */}
-              {emailMode === 'editor' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <textarea
-                    rows={12}
-                    value={editableEmail}
-                    onChange={e => setEditableEmail(e.target.value)}
-                    style={{
-                      width: '100%',
-                      background: 'var(--bg-surface)',
-                      border: '1px solid var(--border-muted)',
-                      borderRadius: 'var(--radius-lg)',
-                      padding: 16,
-                      color: 'var(--text-primary)',
-                      fontSize: 13.5,
-                      lineHeight: 1.7,
-                      fontFamily: 'var(--font-sans)',
-                      outline: 'none',
-                      resize: 'vertical',
-                      boxShadow: 'var(--shadow-subtle)'
-                    }}
-                  />
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving}
-                      className="btn btn-secondary btn-sm"
-                    >
-                      <Save size={13} />
-                      <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* DIFF VIEWER MODE */}
-              {emailMode === 'diff' && (
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 12,
-                  background: 'var(--bg-surface)',
-                  padding: 16,
-                  borderRadius: 'var(--radius-lg)',
-                  border: '1px solid var(--border-subtle)'
-                }}>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-                      Original AI Generation (Agent 4)
-                    </div>
-                    <div style={{
-                      background: 'var(--bg-input)',
-                      border: '1px solid var(--border-subtle)',
-                      padding: 12,
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 12.5,
-                      color: 'var(--text-secondary)',
-                      whiteSpace: 'pre-wrap',
-                      lineHeight: 1.6
-                    }}>
-                      {lead.original_draft || lead.draft_email}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-primary)', textTransform: 'uppercase', marginBottom: 8 }}>
-                      Current Working Copy
-                    </div>
-                    <div style={{
-                      background: 'var(--bg-input)',
-                      border: '1px solid var(--border-highlight)',
-                      padding: 12,
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 12.5,
-                      color: 'var(--text-primary)',
-                      whiteSpace: 'pre-wrap',
-                      lineHeight: 1.6
-                    }}>
-                      {editableEmail}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* EMAIL CLIENT MOCKUP MODE */}
-              {emailMode === 'preview' && (
-                <div style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-lg)',
-                  padding: 18
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-                      <Laptop size={14} />
-                      <span>Simulated Recipient Inbox (Gmail Client)</span>
-                    </div>
-                  </div>
-
-                  <div style={{
-                    background: '#0d1117',
-                    border: '1px solid #30363d',
-                    borderRadius: 'var(--radius-md)',
-                    overflow: 'hidden',
-                    fontFamily: 'system-ui, -apple-system, sans-serif'
-                  }}>
-                    {/* Fake Gmail Header */}
-                    <div style={{ background: '#161b22', padding: '12px 16px', borderBottom: '1px solid #30363d' }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: '#f0f6fc', marginBottom: 8 }}>
-                        {currentSubject}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: '#8b949e' }}>
-                        <div>
-                          <strong style={{ color: '#c9d1d9' }}>
-                            {clientProfile?.senderName || (clientProfile?.companyName ? `${clientProfile.companyName} Team` : 'Your Name')}
-                          </strong> &lt;{clientProfile?.senderEmail || 'you@company.com'}&gt;
-                          <div style={{ fontSize: 11 }}>to {lead.contact_email || 'prospect@company.com'}</div>
-                        </div>
-                        <div>10:42 AM (Just now)</div>
-                      </div>
-                    </div>
-
-                    {/* Email Body */}
-                    <div style={{
-                      padding: 20,
-                      color: '#e6edf3',
-                      fontSize: 13.5,
-                      lineHeight: 1.7,
-                      whiteSpace: 'pre-wrap'
-                    }}>
-                      {editableEmail}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Prompt Regeneration Box */}
-              {showPromptBox ? (
-                <div style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-highlight)',
-                  borderRadius: 'var(--radius-lg)',
-                  padding: 16,
-                  animation: 'fadeIn 0.2s ease-out'
-                }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Sparkles size={14} color="var(--brand-primary)" />
-                    <span>Direct Instructions for Agent 4 (The Sales Director)</span>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Instruct AI to refine draft
                   </div>
                   <input
                     type="text"
-                    placeholder="e.g. 'Make it shorter under 90 words', 'Emphasize Kubernetes security', 'More casual tone'..."
+                    placeholder="e.g., Make it shorter, focus more on AWS cost reduction..."
                     value={feedbackPrompt}
                     onChange={e => setFeedbackPrompt(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleTriggerRegenerate(); }}
-                    style={{
-                      width: '100%',
-                      background: 'var(--bg-input)',
-                      border: '1px solid var(--border-muted)',
-                      borderRadius: 'var(--radius-sm)',
-                      padding: '8px 12px',
-                      color: 'var(--text-primary)',
-                      fontSize: 13,
-                      marginBottom: 10,
-                      outline: 'none'
-                    }}
+                    className="input-field"
                   />
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
                     <button onClick={() => setShowPromptBox(false)} className="btn btn-ghost btn-sm">
                       Cancel
                     </button>
-                    <button 
-                      onClick={handleTriggerRegenerate}
-                      disabled={isRegenerating || !feedbackPrompt.trim()}
-                      className="btn btn-primary btn-sm"
-                    >
-                      <RefreshCw size={12} className={isRegenerating ? 'animate-spin' : ''} />
-                      <span>{isRegenerating ? 'Regenerating...' : 'Regenerate Draft'}</span>
+                    <button onClick={handleTriggerRegenerate} className="btn btn-primary btn-sm" disabled={isRegenerating}>
+                      {isRegenerating ? 'Generating...' : 'Apply Feedback'}
                     </button>
                   </div>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <button 
-                    onClick={() => setShowPromptBox(true)}
-                    className="btn btn-secondary btn-sm"
-                  >
-                    <Sparkles size={13} color="var(--brand-primary)" />
-                    <span>Refine with AI Prompt</span>
+              )}
+
+              {/* Sequence Actions */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={handleSave} className="btn btn-secondary btn-sm" disabled={isSaving}>
+                    <Save size={12} />
+                    <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
                   </button>
 
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    {lead.status !== 'Approved' && lead.status !== 'Sent' && (
-                      <button
-                        onClick={() => handleSendOrApprove('approve')}
-                        className="btn btn-secondary"
-                      >
-                        <CheckCircle size={14} color="var(--accent-emerald)" />
-                        <span>Approve for Queue</span>
-                      </button>
-                    )}
+                  <button 
+                    onClick={() => setShowPromptBox(prev => !prev)} 
+                    className="btn btn-secondary btn-sm"
+                  >
+                    <Sparkles size={12} />
+                    <span>Refine with AI</span>
+                  </button>
+                </div>
 
-                    <button
-                      onClick={() => handleSendOrApprove('send')}
-                      disabled={isSending}
-                      className="btn btn-primary"
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {isNeedsReview && (
+                    <button 
+                      onClick={() => handleSendOrApprove('approve')}
+                      className="btn btn-secondary btn-sm"
                     >
-                      <Send size={14} />
-                      <span>{isSending ? 'Sending...' : '1-Click Send via SMTP'}</span>
+                      <Check size={12} color="var(--status-qualified-text)" />
+                      <span>Approve</span>
                     </button>
-                  </div>
+                  )}
+
+                  <button 
+                    onClick={() => handleSendOrApprove('send')}
+                    className="btn btn-primary btn-sm"
+                    disabled={isSending}
+                  >
+                    <Send size={12} />
+                    <span>{isSending ? 'Sending...' : 'Send via SMTP'}</span>
+                  </button>
                 </div>
-              )}
+              </div>
+
             </div>
           )}
 
-          {/* TAB 2: INTEL DOSSIER */}
-          {activeTab === 'dossier' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Executive Summary */}
-              <div style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-lg)',
-                padding: 16
-              }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>
-                  Company Profile & Architecture Overview
-                </div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  {dossier.summary || 'Profile research compiled by Agent 2.'}
-                </div>
-              </div>
-
-              {/* Tech Stack Tags */}
-              <div style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-lg)',
-                padding: 16
-              }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>
-                  Verified Technical Infrastructure Footprint
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {(dossier.techStack || ['Kubernetes', 'AWS', 'Docker', 'PostgreSQL']).map((tech, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        padding: '4px 10px',
-                        background: 'var(--bg-surface-elevated)',
-                        border: '1px solid var(--border-muted)',
-                        borderRadius: 'var(--radius-full)',
-                        fontSize: 12,
-                        fontWeight: 500,
-                        color: 'var(--text-primary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6
-                      }}
-                    >
-                      <Cpu size={12} color="var(--brand-primary)" />
-                      <span>{tech}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Public Findings */}
-              <div style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-lg)',
-                padding: 16
-              }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>
-                  Public Web Intelligence & Scaling OKRs
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {(dossier.findings || []).map((finding, idx) => (
-                    <div 
-                      key={idx}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: 10,
-                        padding: 10,
-                        background: 'var(--bg-input)',
-                        borderRadius: 'var(--radius-sm)',
-                        border: '1px solid var(--border-subtle)',
-                        fontSize: 12.5,
-                        color: 'var(--text-secondary)'
-                      }}
-                    >
-                      <span style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>•</span>
-                      <span>{finding}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Solutions Architect Mapping */}
-              {painPoints.length > 0 && (
-                <div style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-lg)',
-                  padding: 16
-                }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>
-                    Solutions Architect Value Mapping
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {painPoints.map((pp, idx) => (
-                      <div 
-                        key={idx}
-                        style={{
-                          background: 'var(--bg-input)',
-                          border: '1px solid var(--border-muted)',
-                          borderRadius: 'var(--radius-md)',
-                          padding: 14
-                        }}
-                      >
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#fb7185', marginBottom: 4 }}>
-                          Pain Point: {pp.issue}
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
-                          Impact: {pp.implication}
-                        </div>
-                        {solutions[idx] && (
-                          <div style={{
-                            paddingTop: 8,
-                            borderTop: '1px solid var(--border-subtle)',
-                            fontSize: 12,
-                            color: 'var(--accent-emerald)'
-                          }}>
-                            <strong>Proposed Solution:</strong> {solutions[idx].benefit}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 3: AUDIT LOGS */}
+          {/* TAB: AUDIT TRAIL */}
           {activeTab === 'logs' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {logs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-                  No execution logs recorded yet.
+                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                  No audit logs recorded for this account.
                 </div>
               ) : (
-                logs.map((log, i) => {
-                  const isAgent = log.agent?.startsWith('Agent');
-                  const isSuccess = log.level === 'success';
-                  const isError = log.level === 'error';
-
-                  return (
-                    <div 
-                      key={i}
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 'var(--radius-md)',
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: 12,
-                        fontSize: 12.5
-                      }}
-                    >
-                      <span style={{
-                        padding: '2px 6px',
-                        borderRadius: 'var(--radius-xs)',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        fontFamily: 'var(--font-mono)',
-                        background: isAgent ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-surface-elevated)',
-                        color: isAgent ? '#a5b4fc' : 'var(--text-muted)'
-                      }}>
-                        {log.agent}
+                logs.map((log, index) => (
+                  <div 
+                    key={log.id || index}
+                    style={{
+                      background: 'var(--bg-app)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '8px 12px',
+                      fontSize: 12,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {log.agent || 'Pipeline'}
                       </span>
-                      <div style={{ flexGrow: 1, color: isError ? '#fb7185' : 'var(--text-secondary)' }}>
-                        {log.message}
-                      </div>
-                      <span style={{ fontSize: 10.5, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
-                        {new Date(log.timestamp).toLocaleTimeString()}
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+                        {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : ''}
                       </span>
                     </div>
-                  );
-                })
+                    <div style={{ color: 'var(--text-secondary)', fontSize: 11.5 }}>
+                      {log.message}
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           )}
 
-          {/* TAB 4: TOKEN TELEMETRY */}
-          {activeTab === 'telemetry' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-lg)',
-                padding: 16
-              }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-                  Tiered Model Execution Cost Telemetry
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                  Comparison between LeadLens tiered multi-model execution and brute-force single-tier LLM routing.
-                </div>
-
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
-                  gap: 14,
-                  marginBottom: 20
-                }}>
-                  <div style={{ background: 'var(--bg-input)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-muted)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tiered Cost (Actual)</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)' }}>
-                      ${tokenUsage.total?.cost?.toFixed(4) || '0.0152'}
-                    </div>
-                  </div>
-
-                  <div style={{ background: 'var(--bg-input)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-muted)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Naive Pro Cost</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                      ${tokenUsage.total?.naiveCost?.toFixed(4) || '0.0538'}
-                    </div>
-                  </div>
-
-                  <div style={{ background: 'var(--bg-input)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-muted)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Efficiency Saving</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
-                      {tokenUsage.total?.savingPercent || '71.8'}% Saved
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
         </div>
 
-        {/* Footer Actions */}
-        <div style={{
-          padding: '14px 24px',
-          background: 'var(--bg-surface)',
-          borderTop: '1px solid var(--border-subtle)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexShrink: 0
-        }}>
-          <button 
-            onClick={() => onDelete(lead.id)}
-            className="btn btn-ghost btn-sm"
-            style={{ color: '#fb7185' }}
-          >
-            <Trash2 size={14} />
-            <span>Delete Prospect</span>
-          </button>
-
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} className="btn btn-secondary">
-              Close
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

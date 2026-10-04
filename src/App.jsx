@@ -28,9 +28,9 @@ import {
   Mail,
   Zap,
   Clock,
-  Briefcase,
   LayoutDashboard,
-  Building
+  Building,
+  Cpu
 } from 'lucide-react';
 
 import CommandPalette from './components/CommandPalette.jsx';
@@ -46,8 +46,8 @@ import PipelineControlsView from './components/PipelineControlsView.jsx';
 
 export default function App() {
   // Navigation View State
-  const [activeView, setActiveView] = useState('dashboard'); // 'dashboard' | 'pipeline' | 'profile' | 'controls' | 'agents' | 'analytics' | 'campaigns' | 'integrations'
-  const [viewMode, setViewMode] = useState('kanban'); // 'kanban' | 'table'
+  const [activeView, setActiveView] = useState('overview'); // 'overview' | 'accounts' | 'research' | 'campaigns' | 'sequences' | 'automation' | 'integrations' | 'settings'
+  const [viewMode, setViewMode] = useState('table'); // 'table' | 'kanban'
 
   // Data States
   const [leads, setLeads] = useState([]);
@@ -433,112 +433,104 @@ export default function App() {
 
   return (
     <div className="enterprise-app">
-      {/* Subtle Ambient Backdrops */}
-      <div className="ambient-glow" />
-      <div className="ambient-glow-alt" />
-
-      {/* 1. Sleek Navigation Sidebar */}
+      {/* 1. Sleek, Compact & Quiet Sidebar */}
       <aside className="app-sidebar">
         <div className="brand-header">
           <div className="brand-emblem">
-            <div className="brand-icon-box">
-              <Sparkles size={18} color="#ffffff" />
-            </div>
-            <div className="brand-title">LeadLens</div>
+            <span className="brand-title">LEADLENS</span>
           </div>
-          <span className="enterprise-badge">PRO</span>
         </div>
 
         <nav className="sidebar-nav">
-          <div className="nav-section-label">Command Center</div>
-          
           <div 
-            onClick={() => setActiveView('dashboard')}
-            className={`nav-link ${activeView === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setActiveView('overview')}
+            className={`nav-link ${activeView === 'overview' || activeView === 'dashboard' ? 'active' : ''}`}
           >
-            <LayoutDashboard size={16} className="nav-icon" />
-            <span>Dashboard</span>
-            <span className="enterprise-badge" style={{ fontSize: 9, padding: '1px 5px' }}>Live</span>
+            <LayoutDashboard size={15} className="nav-icon" />
+            <span>Overview</span>
           </div>
 
           <div 
-            onClick={() => setActiveView('pipeline')}
-            className={`nav-link ${activeView === 'pipeline' ? 'active' : ''}`}
+            onClick={() => setActiveView('accounts')}
+            className={`nav-link ${activeView === 'accounts' || activeView === 'pipeline' ? 'active' : ''}`}
           >
-            <Kanban size={16} className="nav-icon" />
-            <span>Accounts & Pipeline</span>
-            <span className="nav-badge">{leads.length}</span>
-          </div>
-
-          <div className="nav-section-label">Intelligence & Controls</div>
-
-          <div 
-            onClick={() => setActiveView('controls')}
-            className={`nav-link ${activeView === 'controls' ? 'active' : ''}`}
-          >
-            <Sliders size={16} className="nav-icon" />
-            <span>Pipeline Controls</span>
+            <Building size={15} className="nav-icon" />
+            <span>Accounts</span>
+            {leads.length > 0 && <span className="nav-badge">{leads.length}</span>}
           </div>
 
           <div 
-            onClick={() => setActiveView('agents')}
-            className={`nav-link ${activeView === 'agents' ? 'active' : ''}`}
+            onClick={() => setActiveView('research')}
+            className={`nav-link ${activeView === 'research' || activeView === 'agents' ? 'active' : ''}`}
           >
-            <Activity size={16} className="nav-icon" />
-            <span>5-Agent Architecture</span>
-          </div>
-
-          <div 
-            onClick={() => setActiveView('analytics')}
-            className={`nav-link ${activeView === 'analytics' ? 'active' : ''}`}
-          >
-            <TrendingUp size={16} className="nav-icon" />
-            <span>Executive ROI</span>
-          </div>
-
-          <div className="nav-section-label">Configuration & Setup</div>
-
-          <div 
-            onClick={() => setActiveView('profile')}
-            className={`nav-link ${activeView === 'profile' ? 'active' : ''}`}
-          >
-            <Building size={16} className="nav-icon" />
-            <span>Profile & ICP Setup</span>
+            <Search size={15} className="nav-icon" />
+            <span>Research</span>
+            {leads.some(l => l.status === 'Researching') && (
+              <span className="status-dot-quiet blue" style={{ marginLeft: 'auto' }} />
+            )}
           </div>
 
           <div 
             onClick={() => setActiveView('campaigns')}
             className={`nav-link ${activeView === 'campaigns' ? 'active' : ''}`}
           >
-            <Target size={16} className="nav-icon" />
-            <span>ICP Campaigns</span>
+            <Target size={15} className="nav-icon" />
+            <span>Campaigns</span>
+          </div>
+
+          <div 
+            onClick={() => setActiveView('sequences')}
+            className={`nav-link ${activeView === 'sequences' ? 'active' : ''}`}
+          >
+            <Mail size={15} className="nav-icon" />
+            <span>Sequences</span>
+          </div>
+
+          <hr className="sidebar-divider" />
+
+          <div 
+            onClick={() => setActiveView('automation')}
+            className={`nav-link ${activeView === 'automation' || activeView === 'controls' ? 'active' : ''}`}
+          >
+            <Sliders size={15} className="nav-icon" />
+            <span>Automation</span>
           </div>
 
           <div 
             onClick={() => setActiveView('integrations')}
             className={`nav-link ${activeView === 'integrations' ? 'active' : ''}`}
           >
-            <Settings size={16} className="nav-icon" />
-            <span>Integrations & SMTP</span>
+            <Cpu size={15} className="nav-icon" />
+            <span>Integrations</span>
+          </div>
+
+          <hr className="sidebar-divider" />
+
+          <div 
+            onClick={() => setActiveView('settings')}
+            className={`nav-link ${activeView === 'settings' || activeView === 'profile' ? 'active' : ''}`}
+          >
+            <Settings size={15} className="nav-icon" />
+            <span>Settings</span>
           </div>
         </nav>
 
-        {/* Footer Identity */}
+        {/* Quiet Compact Footer */}
         <div className="sidebar-footer">
           <div 
             className="client-identity-card" 
-            onClick={() => setActiveView('profile')}
+            onClick={() => setActiveView('settings')}
             style={{ cursor: 'pointer' }}
-            title="Click to edit Company & ICP Profile"
+            title="Workspace & Settings"
           >
             <div className="client-avatar">
               {clientProfile?.companyName ? clientProfile.companyName.substring(0, 2).toUpperCase() : 'LL'}
             </div>
             <div className="client-details">
-              <div className="client-company">{clientProfile?.companyName || 'LeadLens Workspace'}</div>
+              <div className="client-company">{clientProfile?.companyName || 'Enterprise Workspace'}</div>
               <div className="client-tier">
-                <span className="pulse-dot" />
-                <span>Enterprise Active</span>
+                <span className="status-dot-quiet online" />
+                <span>Operational</span>
               </div>
             </div>
           </div>
@@ -547,53 +539,91 @@ export default function App() {
 
       {/* 2. Main Content Area */}
       <main className="app-main">
-        {/* Top Command Bar */}
+        {/* Compact Top Navigation Bar */}
         <header className="top-command-bar">
           <div className="command-bar-left">
-            <div className="campaign-selector-pill" onClick={() => setActiveView('profile')}>
-              <span className="campaign-dot" />
-              <span>Workspace: <strong>{clientProfile?.companyName || 'LeadLens Enterprise'}</strong></span>
+            <div className="top-breadcrumb">
+              <span>LeadLens</span>
+              <span style={{ color: 'var(--text-muted)' }}>/</span>
+              <strong>Enterprise</strong>
             </div>
 
             <div 
               className="global-search-trigger"
               onClick={() => setIsCommandPaletteOpen(true)}
             >
-              <Search size={14} />
-              <span>Search prospects, commands...</span>
-              <kbd className="kbd-shortcut">Ctrl+K</kbd>
+              <Search size={13} />
+              <span>Search accounts, commands...</span>
+              <kbd className="kbd-shortcut">Ctrl + K</kbd>
             </div>
           </div>
 
           <div className="command-bar-right">
-            <div className="engine-telemetry-badge">
-              <span className="pulse-dot" />
-              <span>Gemini 2.5 Flash + Pro</span>
+            {/* Research status */}
+            <div className="status-badge-quiet">
+              <span className={`status-dot-quiet ${leads.some(l => l.status === 'Researching') ? 'blue' : 'online'}`} />
+              <span>
+                {leads.some(l => l.status === 'Researching') 
+                  ? `Research in progress (${leads.filter(l => l.status === 'Researching').length})`
+                  : 'System ready'}
+              </span>
+            </div>
+
+            {/* Workspace indicator */}
+            <div 
+              className="status-badge-quiet"
+              onClick={() => setActiveView('settings')}
+              style={{ cursor: 'pointer' }}
+              title="Workspace settings"
+            >
+              <span>{clientProfile?.companyName || 'Enterprise Workspace'}</span>
             </div>
 
             <button 
               onClick={() => setIsBatchModalOpen(true)}
               className="btn btn-secondary btn-sm"
             >
-              <Database size={13} />
-              <span>Batch CSV</span>
+              <Database size={12} />
+              <span>Import CSV</span>
             </button>
 
             <button 
               onClick={() => setIsNewLeadModalOpen(true)}
               className="btn btn-primary btn-sm"
             >
-              <Plus size={13} />
-              <span>Research Account</span>
+              <Plus size={12} />
+              <span>+ Research</span>
             </button>
+
+            {/* User Menu / Avatar */}
+            <div 
+              onClick={() => setActiveView('settings')}
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 'var(--radius-xs)',
+                background: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 10.5,
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                cursor: 'pointer'
+              }}
+              title="User settings"
+            >
+              {clientProfile?.senderName ? clientProfile.senderName.substring(0, 2).toUpperCase() : 'LL'}
+            </div>
           </div>
         </header>
 
         {/* Workspace Views */}
         <div className="workspace-container">
           
-          {/* VIEW: DASHBOARD */}
-          {activeView === 'dashboard' && (
+          {/* VIEW: OVERVIEW / DASHBOARD */}
+          {(activeView === 'overview' || activeView === 'dashboard') && (
             <DashboardView 
               leads={leads}
               analytics={analytics}
@@ -610,8 +640,8 @@ export default function App() {
             />
           )}
 
-          {/* VIEW: PROFILE & ICP SETUP */}
-          {activeView === 'profile' && (
+          {/* VIEW: SETTINGS */}
+          {(activeView === 'settings' || activeView === 'profile') && (
             <ProfileSetupView 
               clientProfile={clientProfile}
               onSaveProfile={handleSaveProfile}
@@ -619,8 +649,8 @@ export default function App() {
             />
           )}
 
-          {/* VIEW: PIPELINE CONTROLS & AGENT STUDIO */}
-          {activeView === 'controls' && (
+          {/* VIEW: AUTOMATION */}
+          {(activeView === 'automation' || activeView === 'controls') && (
             <PipelineControlsView 
               clientProfile={clientProfile}
               onSaveProfile={handleSaveProfile}
@@ -628,8 +658,8 @@ export default function App() {
             />
           )}
 
-          {/* VIEW: PIPELINE */}
-          {activeView === 'pipeline' && (
+          {/* VIEW: ACCOUNTS */}
+          {(activeView === 'accounts' || activeView === 'pipeline') && (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
               {/* Page Title & View Switch */}
               <div className="page-header">
@@ -906,13 +936,13 @@ export default function App() {
             </div>
           )}
 
-          {/* VIEW: AGENT STUDIO (DAG GRAPH) */}
-          {activeView === 'agents' && (
+          {/* VIEW: RESEARCH PIPELINE & EVIDENCE GRAPH */}
+          {(activeView === 'research' || activeView === 'agents') && (
             <AgentGraph activeLead={selectedLead} isExecuting={leads.some(l => l.status === 'Researching')} />
           )}
 
-          {/* VIEW: ANALYTICS */}
-          {activeView === 'analytics' && (
+          {/* VIEW: SEQUENCES & OUTREACH ANALYTICS */}
+          {(activeView === 'sequences' || activeView === 'analytics') && (
             <AnalyticsView />
           )}
 

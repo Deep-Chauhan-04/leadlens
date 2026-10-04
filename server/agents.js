@@ -76,8 +76,8 @@ export async function callGeminiAPI(apiKey, modelTier, prompt, systemInstruction
   }
 
   const modelsToTry = modelTier === 'premium' || modelTier.includes('pro') ?
-    ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'] :
-    ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    ['gemini-2.5-pro', 'gemini-pro-latest', 'gemini-2.5-flash'] :
+    ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-flash-lite-latest'];
 
   let lastError = null;
 
@@ -123,6 +123,9 @@ export async function callGeminiAPI(apiKey, modelTier, prompt, systemInstruction
         const errText = await res.text();
         console.warn(`[Gemini API] Model ${model} returned status ${res.status}: ${errText.substring(0, 150)}`);
         lastError = new Error(`Gemini API Error (${res.status}): ${errText}`);
+        if (res.status === 429) {
+          await new Promise(r => setTimeout(r, 2500));
+        }
         continue; // Try next model in list
       }
 
