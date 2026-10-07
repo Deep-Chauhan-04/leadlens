@@ -45,6 +45,11 @@ export default function PipelineControlsView({ clientProfile, onSaveProfile, add
   const [modelRoutingTier, setModelRoutingTier] = useState('hybrid'); // 'hybrid' | 'flash' | 'pro'
   const [customInstructions, setCustomInstructions] = useState('');
 
+  // Profile Crawlers
+  const [linkedinCrawler, setLinkedinCrawler] = useState(true);
+  const [githubCrawler, setGithubCrawler] = useState(false);
+  const [xCrawler, setXCrawler] = useState(false);
+
   const [isSaving, setIsSaving] = useState(false);
 
   // Initialize from clientProfile.agentControls
@@ -70,6 +75,10 @@ export default function PipelineControlsView({ clientProfile, onSaveProfile, add
       if (typeof c.searchGrounding === 'boolean') setSearchGrounding(c.searchGrounding);
       if (c.modelRoutingTier) setModelRoutingTier(c.modelRoutingTier);
       if (c.customInstructions) setCustomInstructions(c.customInstructions);
+      
+      if (typeof c.linkedinCrawler === 'boolean') setLinkedinCrawler(c.linkedinCrawler);
+      if (typeof c.githubCrawler === 'boolean') setGithubCrawler(c.githubCrawler);
+      if (typeof c.xCrawler === 'boolean') setXCrawler(c.xCrawler);
     }
   }, [clientProfile]);
 
@@ -93,7 +102,10 @@ export default function PipelineControlsView({ clientProfile, onSaveProfile, add
         liveInspection,
         searchGrounding,
         modelRoutingTier,
-        customInstructions
+        customInstructions,
+        linkedinCrawler,
+        githubCrawler,
+        xCrawler
       }
     };
 
@@ -401,6 +413,101 @@ export default function PipelineControlsView({ clientProfile, onSaveProfile, add
                   value={minDeliverabilityScore}
                   onChange={e => setMinDeliverabilityScore(Number(e.target.value))}
                   style={{ width: '100%', accentColor: 'var(--accent-amber)', cursor: 'pointer' }}
+                />
+              </div>
+
+            </div>
+          </div>
+
+          {/* Profile Crawlers & OSINT */}
+          <div style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-xl)',
+            padding: '22px 24px',
+            boxShadow: 'var(--shadow-card)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <Eye size={16} color="var(--brand-primary)" />
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+                Profile Crawlers & Social Signals
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              
+              <div style={{
+                background: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-muted)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    LinkedIn Profile Crawler
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                    Extract work history, recent posts, and mutual connections for deep personalization
+                  </div>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={linkedinCrawler} 
+                  onChange={e => setLinkedinCrawler(e.target.checked)}
+                  style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--brand-primary)' }}
+                />
+              </div>
+
+              <div style={{
+                background: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-muted)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    GitHub Activity Crawler
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                    Analyze recent commits, programming languages used, and open source contributions
+                  </div>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={githubCrawler} 
+                  onChange={e => setGithubCrawler(e.target.checked)}
+                  style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--brand-primary)' }}
+                />
+              </div>
+
+              <div style={{
+                background: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-muted)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    X / Twitter Signals
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                    Scan for recent tweets, public sentiment, and company mentions
+                  </div>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={xCrawler} 
+                  onChange={e => setXCrawler(e.target.checked)}
+                  style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--brand-primary)' }}
                 />
               </div>
 

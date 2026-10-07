@@ -14,6 +14,12 @@ import {
   regenerateDraft,
   runComplianceGuard 
 } from './agents.js';
+import {
+  discoverCompanies,
+  scanWithGeminiAI,
+  companiesToCsv,
+  VERIFIED_COMPANIES
+} from './companiesData.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -932,6 +938,122 @@ app.post('/api/settings', async (req, res) => {
       [JSON.stringify(profile)]
     );
     res.json({ success: true, message: 'Settings updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 17. Company Discovery & Intelligence Engine
+// -------------------------------------------------------------
+app.get('/api/companies/discover', async (req, res) => {
+  try {
+    const { 
+      query = '', 
+      industry = 'All', 
+      size = 'All', 
+      location = 'All', 
+      funding = 'All', 
+      minScore = 0, 
+      limit = 60 
+    } = req.query;
+
+    const results = discoverCompanies({
+      query,
+      industry,
+      size,
+      location,
+      funding,
+      minScore: Number(minScore) || 0,
+      limit: Number(limit) || 60
+    });
+
+    res.json({
+      success: true,
+      total: results.length,
+      companies: results
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/companies/ai-discover', async (req, res) => {
+  try {
+    const { prompt = '' } = req.body;
+    const row = await dbGet("SELECT value FROM settings WHERE key = 'client_profile'");
+    const clientProfile = row ? JSON.parse(row.value) : {};
+
+    const results = await scanWithGeminiAI(process.env.GEMINI_API_KEY, prompt, clientProfile);
+    res.json({
+      success: true,
+      total: results.length,
+      companies: results
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/companies/export/csv', async (req, res) => {
+  try {
+    const { companies = [] } = req.body;
+    const listToExport = Array.isArray(companies) && companies.length > 0 ? companies : VERIFIED_COMPANIES;
+    const csvContent = companiesToCsv(listToExport);
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="leadlens_companies_export.csv"');
+    res.send(csvContent);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/companies/add-to-pipeline', async (req, res) => {
+  try {
+    const { companies = [], campaignId = 1, autoStart = true } = req.body;
+    if (!Array.isArray(companies) || companies.length === 0) {
+      return res.status(400).json({ error: 'No companies provided' });
+    }
+
+    const row = await dbGet("SELECT value FROM settings WHERE key = 'client_profile'");
+    const clientProfile = row ? JSON.parse(row.value) : {};
+
+    const insertedLeads = [];
+    for (const comp of companies) {
+      const existing = await dbGet('SELECT id FROM leads WHERE company_name = ? OR website = ?', [comp.name, comp.domain]);
+      if (existing) {
+        insertedLeads.push({ id: existing.id, company_name: comp.name, status: 'Existing' });
+        continue;
+      }
+
+      const result = await dbRun(`
+        INSERT INTO leads (
+          company_name, website, industry, employee_count, location, 
+          status, icp_score, pain_points, campaign_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        comp.name,
+        comp.domain,
+        comp.industry || 'Technology',
+        comp.headcount || '51-200',
+        comp.location || 'United States',
+        autoStart ? 'Researching' : 'Needs Review',
+        comp.icpFitScore || 90,
+        JSON.stringify(comp.painPoints || []),
+        campaignId
+      ]);
+
+      const leadId = result.id;
+      insertedLeads.push({ id: leadId, company_name: comp.name, status: autoStart ? 'Researching' : 'Needs Review' });
+
+      if (autoStart) {
+        runBackgroundPipeline(leadId, comp.name, comp.domain, clientProfile, process.env.GEMINI_API_KEY)
+          .catch(err => console.error(`Background pipeline failed for company ${comp.name}:`, err));
+      }
+    }
+
+    res.json({ success: true, count: insertedLeads.length, leads: insertedLeads });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

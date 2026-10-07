@@ -54,11 +54,28 @@ export default function BatchImportModal({ isOpen, onClose, onBatchSubmit, campa
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 110 }}>
-      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: 640 }}>
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(8, 9, 11, 0.85)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 110
+    }} onClick={onClose}>
+      <div style={{
+        width: 640,
+        background: 'var(--bg-app)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 4,
+        display: 'flex',
+        flexDirection: 'column'
+      }} onClick={e => e.stopPropagation()}>
+        
         {/* Header */}
         <div style={{
-          padding: '18px 24px',
+          padding: '24px 32px 16px',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
@@ -66,73 +83,66 @@ export default function BatchImportModal({ isOpen, onClose, onBatchSubmit, campa
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
-              width: 36,
-              height: 36,
-              borderRadius: 'var(--radius-md)',
-              background: 'rgba(99, 102, 241, 0.15)',
+              width: 32,
+              height: 32,
+              borderRadius: 2,
+              background: 'rgba(0, 229, 255, 0.05)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--brand-primary)'
+              border: '1px solid rgba(0, 229, 255, 0.2)'
             }}>
-              <Database size={18} />
+              <Database size={16} color="var(--brand-cyan)" />
             </div>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
-                Batch Prospect Importer
+              <div style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+                Batch Account Ingestion
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                Queue multiple target accounts into the autonomous 5-agent research pipeline.
+                Queue raw accounts directly into the autonomous research pipeline.
               </div>
             </div>
           </div>
 
-          <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ padding: 6 }}>
+          <button onClick={onClose} className="btn btn-ghost" style={{ padding: 6 }}>
             <X size={16} />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* Campaign Selector */}
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
-              Target Campaign & ICP Value Proposition
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>
+              Destination Pipeline & Ruleset
             </label>
             <select
               value={selectedCampaignId}
               onChange={e => setSelectedCampaignId(Number(e.target.value))}
-              style={{
-                width: '100%',
-                background: 'var(--bg-input)',
-                border: '1px solid var(--border-muted)',
-                borderRadius: 'var(--radius-md)',
-                padding: '8px 12px',
-                color: 'var(--text-primary)',
-                fontSize: 13,
-                outline: 'none'
-              }}
+              className="input-field"
             >
-              {campaigns.map(c => (
+              {campaigns.length > 0 ? campaigns.map(c => (
                 <option key={c.id} value={c.id}>
                   {c.name} ({c.target_persona})
                 </option>
-              ))}
+              )) : (
+                <option value={1}>Default Global Outreach Pipeline</option>
+              )}
             </select>
           </div>
 
           {/* Input Format & File Upload */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Paste Company List (Format: Company Name, Website)
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                Raw Data Paste (CSV/Text)
               </label>
               <label style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 5,
                 fontSize: 11,
-                color: 'var(--brand-primary)',
+                color: 'var(--brand-cyan)',
                 cursor: 'pointer'
               }}>
                 <Upload size={12} />
@@ -146,17 +156,11 @@ export default function BatchImportModal({ isOpen, onClose, onBatchSubmit, campa
               value={inputText}
               onChange={e => setInputText(e.target.value)}
               placeholder="e.g.&#10;Stripe, stripe.com&#10;Databricks, databricks.com&#10;Vercel, vercel.com"
+              className="input-field"
               style={{
-                width: '100%',
-                background: 'var(--bg-input)',
-                border: '1px solid var(--border-muted)',
-                borderRadius: 'var(--radius-md)',
-                padding: 12,
-                color: 'var(--text-primary)',
                 fontFamily: 'var(--font-mono)',
                 fontSize: 12.5,
                 lineHeight: 1.6,
-                outline: 'none',
                 resize: 'vertical'
               }}
             />
@@ -164,24 +168,24 @@ export default function BatchImportModal({ isOpen, onClose, onBatchSubmit, campa
 
           {/* Parsed Preview */}
           <div style={{
-            background: 'var(--bg-app)',
+            background: 'transparent',
             border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            padding: 12
+            borderRadius: 2,
+            padding: 16
           }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-              Ready to Queue ({parsed.length} Accounts Identified)
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>
+              Execution Queue ({parsed.length} Verified)
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 90, overflowY: 'auto' }}>
               {parsed.map((p, i) => (
                 <span
                   key={i}
                   style={{
-                    padding: '3px 8px',
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'var(--bg-surface-elevated)',
-                    border: '1px solid var(--border-muted)',
-                    fontSize: 11.5,
+                    padding: '4px 8px',
+                    borderRadius: 2,
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid var(--border-subtle)',
+                    fontSize: 11,
                     color: 'var(--text-secondary)',
                     fontFamily: 'var(--font-mono)'
                   }}
@@ -195,12 +199,12 @@ export default function BatchImportModal({ isOpen, onClose, onBatchSubmit, campa
 
         {/* Footer */}
         <div style={{
-          padding: '14px 24px',
+          padding: '24px 32px',
           borderTop: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
-          gap: 10
+          gap: 12
         }}>
           <button onClick={onClose} className="btn btn-secondary">
             Cancel
@@ -211,7 +215,7 @@ export default function BatchImportModal({ isOpen, onClose, onBatchSubmit, campa
             className="btn btn-primary"
           >
             <CheckCircle size={14} />
-            <span>{isSubmitting ? 'Enqueuing Pipeline...' : `Launch Pipeline (${parsed.length} Accounts)`}</span>
+            <span>{isSubmitting ? 'Enqueuing Pipeline...' : `Launch Agents (${parsed.length} Accounts)`}</span>
           </button>
         </div>
       </div>

@@ -36,14 +36,14 @@ export default function CommandPalette({
   ).slice(0, 5) : leads.slice(0, 4);
 
   const quickActions = [
-    { id: 'view-dashboard', label: 'Go to Executive Dashboard', icon: LayoutDashboard, action: () => { onClose(); onNavigate('dashboard'); } },
-    { id: 'view-profile', label: 'Configure Company & ICP Profile', icon: Building, action: () => { onClose(); onNavigate('profile'); } },
-    { id: 'view-controls', label: 'Adjust Pipeline & Agent Controls', icon: Sliders, action: () => { onClose(); onNavigate('controls'); } },
+    { id: 'view-dashboard', label: 'Go to Executive Dashboard', icon: LayoutDashboard, action: () => { onClose(); onNavigate('overview'); } },
+    { id: 'view-companies', label: 'Company Discovery & Target Scouting (CSV Export)', icon: Building, action: () => { onClose(); onNavigate('companies'); } },
+    { id: 'view-controls', label: 'Pipeline Controls & Agent Studio', icon: Sliders, action: () => { onClose(); onNavigate('accounts'); } },
+    { id: 'view-profile', label: 'Configure Company & ICP Profile', icon: Building, action: () => { onClose(); onNavigate('settings'); } },
     { id: 'new-lead', label: 'Trigger Single Prospect Research', icon: Sparkles, action: () => { onClose(); onOpenNewLeadModal(); } },
     { id: 'batch-import', label: 'Batch Import Prospects (CSV / Domain List)', icon: Database, action: () => { onClose(); onOpenBatchModal(); } },
-    { id: 'view-pipeline', label: 'Go to Pipeline Board', icon: FileText, action: () => { onClose(); onNavigate('pipeline'); } },
-    { id: 'view-agents', label: 'Go to Agent Studio (DAG Graph)', icon: Sparkles, action: () => { onClose(); onNavigate('agents'); } },
-    { id: 'view-analytics', label: 'Go to Executive ROI & Telemetry', icon: Settings, action: () => { onClose(); onNavigate('analytics'); } },
+    { id: 'view-analytics', label: 'Executive ROI & Analytics Telemetry', icon: Settings, action: () => { onClose(); onNavigate('analytics'); } },
+    { id: 'view-campaigns', label: 'Campaigns & Target Personas', icon: FileText, action: () => { onClose(); onNavigate('campaigns'); } },
     { id: 'view-integrations', label: 'Diagnostics & SMTP Settings', icon: Send, action: () => { onClose(); onNavigate('integrations'); } },
   ].filter(a => a.label.toLowerCase().includes(query.toLowerCase()));
 
